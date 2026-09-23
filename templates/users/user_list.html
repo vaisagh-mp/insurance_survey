@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}System Users - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">User Accounts</h1>
+        <p class="page-subtitle">Registered system accounts and assigned access roles</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Active</th>
+                    <th>Joined</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.get_full_name|default:"-" }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>
+                        {% if u.role == 'ADMIN' %}
+                            <span class="badge" style="background: #ede9fe; color: #6d28d9;">ADMIN</span>
+                        {% else %}
+                            <span class="badge" style="background: #e0f2fe; color: #0369a1;">SURVEYOR</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="status-pill pill-submitted">Active</span>
+                        {% else %}
+                            <span class="status-pill pill-closed">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.825rem; color: #718096;">{{ u.date_joined|date:"d M Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

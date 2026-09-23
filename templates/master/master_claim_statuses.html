@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Master Data: Claim Statuses - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Master Data: Claim Lifecycle Statuses</h1>
+        <p class="page-subtitle">Defined stages in claim progression from initial registration to closure</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Status Code</th>
+                    <th>Display Name</th>
+                    <th>Stage Category</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for code, label in statuses %}
+                <tr>
+                    <td><code>{{ code }}</code></td>
+                    <td><strong>{{ label }}</strong></td>
+                    <td>
+                        {% if code in 'NEW,ASSIGNED' %}
+                            <span class="status-pill pill-new">Initiation</span>
+                        {% elif code in 'INSPECTION_PENDING,INSPECTION_COMPLETED' %}
+                            <span class="status-pill pill-inspection">Survey &amp; Inspection</span>
+                        {% elif code in 'ILA_PREPARED,LOR_ISSUED,DOCUMENT_COLLECTION,ASSESSMENT_IN_PROGRESS,ISR_PREPARED,FSR_PREPARED' %}
+                            <span class="status-pill pill-assigned">Adjustment &amp; Assessment</span>
+                        {% elif code == 'REPORT_SUBMITTED' %}
+                            <span class="status-pill pill-submitted">Submitted</span>
+                        {% elif code == 'CLOSED' %}
+                            <span class="status-pill pill-closed">Closed</span>
+                        {% else %}
+                            <span class="status-pill pill-query">Special Handling</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Policies - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Insurance Policies</h1>
+        <p class="page-subtitle">Underwritten insurance contracts and coverage schedules</p>
+    </div>
+    <div>
+        <a href="/policies/add/" class="btn btn-primary">+ Add Policy</a>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Policy No.</th>
+                    <th>Insurer</th>
+                    <th>Policy Type</th>
+                    <th>Sum Insured</th>
+                    <th>Excess</th>
+                    <th>Commodity / Subject Matter</th>
+                    <th>Period</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pol in policies %}
+                <tr>
+                    <td><strong>{{ pol.policy_number }}</strong></td>
+                    <td>{{ pol.insurer.company_name }}</td>
+                    <td>{{ pol.policy_type }}</td>
+                    <td><strong>Rs. {{ pol.sum_insured|floatformat:2 }}</strong></td>
+                    <td>Rs. {{ pol.excess|floatformat:2 }}</td>
+                    <td>
+                        <div>{{ pol.commodity }}</div>
+                        <div style="font-size: 0.775rem; color: #718096;">{{ pol.subject_matter|truncatewords:6 }}</div>
+                    </td>
+                    <td style="font-size: 0.8rem; color: #718096;">
+                        {{ pol.start_datetime|date:"d M Y" }} to {{ pol.end_datetime|date:"d M Y" }}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="/policies/{{ pol.id }}/edit/" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Edit</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #a0aec0; padding: 2rem;">No policies registered.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

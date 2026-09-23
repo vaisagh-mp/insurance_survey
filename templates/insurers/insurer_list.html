@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Insurers - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Insurance Companies</h1>
+        <p class="page-subtitle">Registered insurers and regional branch offices</p>
+    </div>
+    <div>
+        <a href="/insurers/add/" class="btn btn-primary">+ Add Insurer</a>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Company Name</th>
+                    <th>Branch</th>
+                    <th>Contact Person</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>City / State</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ins in insurers %}
+                <tr>
+                    <td><strong>{{ ins.company_name }}</strong></td>
+                    <td>{{ ins.branch_name }}</td>
+                    <td>{{ ins.contact_person }}</td>
+                    <td>{{ ins.phone }}</td>
+                    <td>{{ ins.email }}</td>
+                    <td>{{ ins.city }}, {{ ins.state }}</td>
+                    <td>
+                        {% if ins.is_active %}
+                            <span class="status-pill pill-submitted">Active</span>
+                        {% else %}
+                            <span class="status-pill pill-closed">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="/insurers/{{ ins.id }}/edit/" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Edit</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #a0aec0; padding: 2rem;">No insurers registered.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

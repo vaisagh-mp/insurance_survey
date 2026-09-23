@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Surveyors - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Surveyors Directory</h1>
+        <p class="page-subtitle">Manage licensed surveyor profiles and field credentials</p>
+    </div>
+    <div class="btn-group" style="margin-top: 0;">
+        <a href="/surveyors/workload/" class="btn btn-outline">Workload Monitor</a>
+        <a href="/surveyors/add/" class="btn btn-primary">+ Add Surveyor</a>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>License No.</th>
+                    <th>License Expiry</th>
+                    <th>Specialization</th>
+                    <th>Phone</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in surveyors %}
+                <tr>
+                    <td><strong>{{ s.username }}</strong></td>
+                    <td>{{ s.get_full_name|default:"-" }}</td>
+                    <td>{{ s.email }}</td>
+                    <td>
+                        {% if s.surveyor_profile %}
+                            <code>{{ s.surveyor_profile.license_number }}</code>
+                        {% else %}
+                            <span style="color: #a0aec0;">None</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.surveyor_profile %}
+                            {{ s.surveyor_profile.license_expiry|date:"d M Y" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ s.surveyor_profile.specialization|default:"General" }}</td>
+                    <td>{{ s.surveyor_profile.phone|default:"-" }}</td>
+                    <td style="text-align: right;">
+                        <a href="/surveyors/{{ s.id }}/edit/" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Edit</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #a0aec0; padding: 2rem;">No surveyors registered.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Executive Dashboard</h1>
+        <p class="page-subtitle">Real-time overview of claims lifecycle, surveyor workloads, and survey reports</p>
+    </div>
+    <div>
+        <a href="/claims/" class="btn btn-outline" style="font-size: 0.85rem;">View All Claims &rarr;</a>
+    </div>
+</div>
+
+<!-- Stat Tiles Grid (12 Stat Tiles) -->
+<div class="stat-tiles-grid">
+    {% for tile in tiles %}
+    <a href="{{ tile.url }}" class="stat-tile {{ tile.color }}">
+        <span class="stat-title">{{ tile.title }}</span>
+        <span class="stat-number">{{ tile.count }}</span>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Recent Claims Table -->
+<div class="card-table-wrapper">
+    <div class="card-table-header">
+        <div class="card-table-title">Recent Claims Activity</div>
+        <a href="/claims/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none; font-weight: 600;">Explore Full Pipeline &rarr;</a>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">Claim No.</th>
+                    <th style="width: 15%;">Type</th>
+                    <th style="width: 20%;">Insured / Insurer</th>
+                    <th style="width: 20%;">Assigned Surveyor</th>
+                    <th style="width: 15%;">Status</th>
+                    <th style="width: 15%;">Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in recent_claims %}
+                <tr>
+                    <td>
+                        <a href="/claims/{{ claim.id }}/" style="color: #2b6cb0; font-weight: 700; text-decoration: none;">
+                            {{ claim.claim_number }}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #edf2f7; color: #2d3748;">{{ claim.survey_type.name }}</span>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600;">{{ claim.insured.name }}</div>
+                        <div style="font-size: 0.775rem; color: #718096;">{{ claim.insurer.company_name }}</div>
+                    </td>
+                    <td>
+                        {% if claim.current_surveyor %}
+                            <div style="font-weight: 500; color: #1a202c;">
+                                {{ claim.current_surveyor.get_full_name|default:claim.current_surveyor.username }}
+                            </div>
+                        {% else %}
+                            <span style="color: #d97706; font-style: italic; font-size: 0.825rem;">Unassigned</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-pill {% if claim.status == 'NEW' %}pill-new{% elif claim.status == 'ASSIGNED' %}pill-assigned{% elif claim.status == 'INSPECTION_PENDING' %}pill-inspection{% elif claim.status == 'REPORT_SUBMITTED' %}pill-submitted{% elif claim.status == 'CLOSED' %}pill-closed{% else %}pill-ila{% endif %}">
+                            {{ claim.get_status_display }}
+                        </span>
+                    </td>
+                    <td style="color: #718096; font-size: 0.825rem;">
+                        {{ claim.created_at|date:"d M Y, H:i" }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #a0aec0; padding: 2rem;">
+                        No claims registered in the system yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

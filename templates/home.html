@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}It Works - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div class="hero-header">
+        <h1 class="hero-title">
+            <span class="status-dot"></span>
+            It works!
+        </h1>
+        <span class="badge badge-success">Django 5.x Initialized</span>
+    </div>
+
+    <p class="hero-desc">
+        The <strong>Insurance Surveyor Web Application (V1)</strong> project has been successfully initialized. All core architectural components, split configuration environments, and domain modules are active and ready for development.
+    </p>
+
+    <div class="grid-3">
+        <div class="feature-box">
+            <h3 class="feature-title">System Settings</h3>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Configured via <code>config.settings.dev</code></p>
+            <ul class="feature-list">
+                <li>Django 5.x + REST Framework</li>
+                <li>django-environ (.env support)</li>
+                <li>django-cors-headers enabled</li>
+                <li>SQLite Dev / PostgreSQL Prod</li>
+                <li>Media & Static routes configured</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <h3 class="feature-title">Registered Apps</h3>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">6 Core Domain Apps</p>
+            <ul class="feature-list">
+                <li><strong>accounts</strong> &mdash; Auth & Users</li>
+                <li><strong>claims</strong> &mdash; Claim Management</li>
+                <li><strong>surveys</strong> &mdash; Field Inspections</li>
+                <li><strong>documents</strong> &mdash; Media & Evidence</li>
+                <li><strong>assessments</strong> &mdash; Loss Valuation</li>
+                <li><strong>reports</strong> &mdash; Formal Survey Reports</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <h3 class="feature-title">API Documentation</h3>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Powered by drf-spectacular</p>
+            <ul class="feature-list">
+                <li>OpenAPI 3.0 schema generation</li>
+                <li>Interactive Swagger UI docs</li>
+                <li>Redoc alternative docs</li>
+                <li>Django Filter integration</li>
+                <li>Pagination & Search standard</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <a href="/api/docs/" class="btn btn-primary">Open API Documentation</a>
+        <a href="/api/schema/" class="btn btn-outline" target="_blank">View OpenAPI Schema</a>
+        <a href="/admin/" class="btn btn-outline">Django Admin</a>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}Survey Reports - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Survey Reports Registry</h1>
+        <p class="page-subtitle">Immediate Loss Advices (ILA), Interim Survey Reports (ISR), and Final Survey Reports (FSR)</p>
+    </div>
+</div>
+
+<!-- FSR Section -->
+<div class="card-table-wrapper" style="margin-bottom: 2rem;">
+    <div class="card-table-header">
+        <div class="card-table-title">Final Survey Reports (FSR)</div>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Report No.</th>
+                    <th>Claim</th>
+                    <th>Prepared By</th>
+                    <th>Report Date</th>
+                    <th>Status</th>
+                    <th>Net Assessed Loss</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in fsrs %}
+                <tr>
+                    <td><strong>{{ r.report_number }}</strong> (v{{ r.version_number }})</td>
+                    <td>
+                        <a href="/claims/{{ r.claim.id }}/" style="color: #2b6cb0; text-decoration: none;">{{ r.claim.claim_number }}</a>
+                    </td>
+                    <td>{{ r.prepared_by.get_full_name|default:r.prepared_by.username }}</td>
+                    <td>{{ r.report_date|date:"d M Y" }}</td>
+                    <td>
+                        <span class="status-pill {% if r.status == 'FINAL' %}pill-submitted{% else %}pill-assigned{% endif %}">{{ r.get_status_display }}</span>
+                    </td>
+                    <td>
+                        {% if r.net_assessed_loss %}
+                            <strong>Rs. {{ r.net_assessed_loss|floatformat:2 }}</strong>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="/api/fsr/{{ r.id }}/preview-pdf/" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.775rem;">PDF Preview</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #a0aec0; padding: 1.5rem;">No FSR reports registered yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ISR Section -->
+<div class="card-table-wrapper" style="margin-bottom: 2rem;">
+    <div class="card-table-header">
+        <div class="card-table-title">Initial / Interim Survey Reports (ISR)</div>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Report No.</th>
+                    <th>Claim</th>
+                    <th>Prepared By</th>
+                    <th>Report Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in isrs %}
+                <tr>
+                    <td><strong>{{ r.report_number }}</strong> (v{{ r.version_number }})</td>
+                    <td>
+                        <a href="/claims/{{ r.claim.id }}/" style="color: #2b6cb0; text-decoration: none;">{{ r.claim.claim_number }}</a>
+                    </td>
+                    <td>{{ r.prepared_by.get_full_name|default:r.prepared_by.username }}</td>
+                    <td>{{ r.report_date|date:"d M Y" }}</td>
+                    <td>
+                        <span class="status-pill pill-assigned">{{ r.get_status_display }}</span>
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="/api/isr/{{ r.id }}/preview-pdf/" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.775rem;">PDF Preview</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #a0aec0; padding: 1.5rem;">No ISR reports registered yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ILA Section -->
+<div class="card-table-wrapper">
+    <div class="card-table-header">
+        <div class="card-table-title">Immediate Loss Advices (ILA)</div>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Report No.</th>
+                    <th>Claim</th>
+                    <th>Surveyor</th>
+                    <th>Visit Date</th>
+                    <th>Estimated Loss</th>
+                    <th>Budgetary Reserve</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in ilas %}
+                <tr>
+                    <td><strong>{{ r.report_number }}</strong> (v{{ r.version_number }})</td>
+                    <td>
+                        <a href="/claims/{{ r.claim.id }}/" style="color: #2b6cb0; text-decoration: none;">{{ r.claim.claim_number }}</a>
+                    </td>
+                    <td>{{ r.surveyor.get_full_name|default:r.surveyor.username }}</td>
+                    <td>{{ r.visit_date|date:"d M Y" }}</td>
+                    <td>Rs. {{ r.estimated_loss|floatformat:2 }}</td>
+                    <td><strong>Rs. {{ r.budgetary_reserve|floatformat:2 }}</strong></td>
+                    <td style="text-align: right;">
+                        <a href="/api/ila/{{ r.id }}/preview-pdf/" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.775rem;">PDF Preview</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #a0aec0; padding: 1.5rem;">No ILA reports registered yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

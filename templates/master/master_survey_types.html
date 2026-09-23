@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Master Data: Survey Types - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Master Data: Survey Types</h1>
+        <p class="page-subtitle">Standard insurance survey classifications</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in types %}
+                <tr>
+                    <td><code>{{ t.code }}</code></td>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>{{ t.description|default:"-" }}</td>
+                    <td>
+                        {% if t.is_active %}
+                            <span class="status-pill pill-submitted">Active</span>
+                        {% else %}
+                            <span class="status-pill pill-closed">Inactive</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Surveyor Dashboard - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Surveyor Portal</h1>
+        <p class="page-subtitle">Welcome back, {{ request.user.get_full_name|default:request.user.username }}. Overview of your active surveys and inspections.</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+        <a href="/claims/" class="btn btn-primary" style="font-size: 0.85rem;">📁 My Claims List</a>
+    </div>
+</div>
+
+<!-- Surveyor Stat Tiles Grid -->
+<div class="stat-tiles-grid">
+    {% for tile in tiles %}
+        <a href="{{ tile.url }}" class="stat-tile {{ tile.color }}">
+            <span class="stat-title">{{ tile.title }}</span>
+            <span class="stat-number">{{ tile.count }}</span>
+        </a>
+    {% endfor %}
+</div>
+
+<!-- My Claims Table -->
+<div class="card-table-wrapper">
+    <div class="card-table-header">
+        <div class="card-table-title">My Claims</div>
+        <a href="/claims/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none; font-weight: 600;">View All &rarr;</a>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Claim No.</th>
+                    <th>Type</th>
+                    <th>Insurer</th>
+                    <th>Insured</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in my_claims %}
+                    <tr>
+                        <td>
+                            <a href="/claims/{{ c.id }}/" style="font-weight: 700; color: #2b6cb0; text-decoration: none;">
+                                {{ c.claim_number }}
+                            </a>
+                        </td>
+                        <td>{{ c.survey_type.name }}</td>
+                        <td>{{ c.insurer.company_name }}</td>
+                        <td>{{ c.insured.name }}</td>
+                        <td>
+                            <span class="status-pill {% if c.status == 'NEW' %}pill-new{% elif c.status == 'ASSIGNED' %}pill-assigned{% elif c.status == 'INSPECTION_PENDING' %}pill-inspection{% elif c.status == 'REPORT_SUBMITTED' %}pill-submitted{% elif c.status == 'CLOSED' %}pill-closed{% else %}pill-ila{% endif %}">
+                                {{ c.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/claims/{{ c.id }}/" class="btn btn-outline" style="padding: 0.25rem 0.55rem; font-size: 0.775rem;">Workspace &rarr;</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #718096; padding: 2.5rem 1rem;">
+                            No claims currently assigned to you.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,472 @@
+{% extends 'base.html' %}
+
+{% block title %}Register New Claim - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="/claims/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none;">&larr; Back to Claims List</a>
+        <h1 class="page-title" style="margin-top: 0.4rem;">Register New Claim</h1>
+        <p class="page-subtitle">Multi-section registration wizard with dynamic survey-type detail validation</p>
+    </div>
+</div>
+
+<form method="post" id="claimForm" class="form-card" style="max-width: 1000px;" novalidate>
+    {% csrf_token %}
+
+    {% if claim_form.errors or detail_form.errors %}
+        <div class="alert alert-danger" style="margin-bottom: 1.5rem;">
+            <strong>Please resolve the following errors:</strong>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                {% for field, errors in claim_form.errors.items %}
+                    <li><strong>{{ field|title }}:</strong> {{ errors|join:", " }}</li>
+                {% endfor %}
+                {% if detail_form and detail_form.errors %}
+                    {% for field, errors in detail_form.errors.items %}
+                        <li><strong>Survey Detail ({{ field|title }}):</strong> {{ errors|join:", " }}</li>
+                    {% endfor %}
+                {% endif %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <!-- SECTION A: CLAIM -->
+    <div style="margin-bottom: 2rem;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            Section A — Claim Particulars
+        </h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.claim_number.id_for_label }}">Claim Number</label>
+                {{ claim_form.claim_number }}
+                {% if claim_form.claim_number.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.claim_number.errors|join:", " }}</span>{% endif %}
+                <span style="font-size: 0.775rem; color: #718096; margin-top: 0.2rem;">Leave blank to auto-generate (e.g. CLM-00001)</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.report_number.id_for_label }}">Report Ref. Number</label>
+                {{ claim_form.report_number }}
+                {% if claim_form.report_number.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.report_number.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="id_survey_type">Survey Type <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.survey_type }}
+                {% if claim_form.survey_type.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.survey_type.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.priority.id_for_label }}">Priority</label>
+                {{ claim_form.priority }}
+                {% if claim_form.priority.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.priority.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.instruction_date.id_for_label }}">Instruction Date <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.instruction_date }}
+                {% if claim_form.instruction_date.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.instruction_date.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.instruction_source.id_for_label }}">Instruction Source <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.instruction_source }}
+                {% if claim_form.instruction_source.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.instruction_source.errors|join:", " }}</span>{% endif %}
+            </div>
+        </div>
+
+        <!-- DYNAMIC SURVEY TYPE DETAIL PANEL -->
+        <div id="surveyTypeDetailContainer" style="margin-top: 1.5rem; display: none;">
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e0; border-radius: 8px; padding: 1.25rem;">
+                <h4 id="surveyDetailHeader" style="font-size: 1rem; font-weight: 700; color: #2b6cb0; margin-bottom: 0.35rem;">
+                    Survey Details
+                </h4>
+                <p style="font-size: 0.8rem; color: #718096; margin-bottom: 1rem;">(Optional at registration — fill only if information is already available)</p>
+
+                <!-- FIRE PANEL -->
+                <div id="panel_FIRE" class="survey-detail-panel" style="display: none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Occupancy <span style="color: #e53e3e;">*</span></label>
+                            {{ fire_form.occupancy }}
+                            {% if fire_form.occupancy.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ fire_form.occupancy.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Construction Details <span style="color: #e53e3e;">*</span></label>
+                            {{ fire_form.construction_details }}
+                            {% if fire_form.construction_details.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ fire_form.construction_details.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Point of Origin</label>
+                            {{ fire_form.point_of_origin }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fire Protection</label>
+                            {{ fire_form.fire_protection_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Building Description <span style="color: #e53e3e;">*</span></label>
+                            {{ fire_form.building_description }}
+                            {% if fire_form.building_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ fire_form.building_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fire Brigade Details</label>
+                            {{ fire_form.fire_brigade_details }}
+                            <div style="margin-top: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                                {{ fire_form.fire_brigade_informed }} <span>Fire brigade informed</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Police Details</label>
+                            {{ fire_form.police_details }}
+                            <div style="margin-top: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                                {{ fire_form.police_informed }} <span>Police informed</span>
+                            </div>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Probable Fire Cause</label>
+                            {{ fire_form.fire_cause }}
+                            <div style="margin-top: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                                {{ fire_form.cause_established }} <span>Cause established conclusively</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ENGINEERING PANEL -->
+                <div id="panel_ENG" class="survey-detail-panel" style="display: none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Equipment / Machine Name <span style="color: #e53e3e;">*</span></label>
+                            {{ eng_form.equipment_name }}
+                            {% if eng_form.equipment_name.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ eng_form.equipment_name.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Manufacturer / Make</label>
+                            {{ eng_form.manufacturer }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Model / Spec</label>
+                            {{ eng_form.model }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Serial Number</label>
+                            {{ eng_form.serial_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Year of Manufacture</label>
+                            {{ eng_form.year_of_manufacture }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Repair Estimate (Rs.)</label>
+                            {{ eng_form.repair_estimate }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Breakdown Description <span style="color: #e53e3e;">*</span></label>
+                            {{ eng_form.breakdown_description }}
+                            {% if eng_form.breakdown_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ eng_form.breakdown_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Damage Description <span style="color: #e53e3e;">*</span></label>
+                            {{ eng_form.damage_description }}
+                            {% if eng_form.damage_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ eng_form.damage_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MARINE PANEL -->
+                <div id="panel_MARINE" class="survey-detail-panel" style="display: none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Vessel / Transport Carrier <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.vessel_name }}
+                            {% if marine_form.vessel_name.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.vessel_name.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Voyage / Trip No.</label>
+                            {{ marine_form.voyage_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Port / Place of Loading <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.port_of_loading }}
+                            {% if marine_form.port_of_loading.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.port_of_loading.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Port / Place of Discharge <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.port_of_discharge }}
+                            {% if marine_form.port_of_discharge.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.port_of_discharge.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Place of Survey <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.place_of_survey }}
+                            {% if marine_form.place_of_survey.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.place_of_survey.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">B/L or LR Consignment No.</label>
+                            {{ marine_form.bill_of_lading_number }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Cargo Description <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.cargo_description }}
+                            {% if marine_form.cargo_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.cargo_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Damage Description <span style="color: #e53e3e;">*</span></label>
+                            {{ marine_form.damage_description }}
+                            {% if marine_form.damage_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ marine_form.damage_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROPERTY PANEL -->
+                <div id="panel_PROPERTY" class="survey-detail-panel" style="display: none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Property Type <span style="color: #e53e3e;">*</span></label>
+                            {{ property_form.property_type }}
+                            {% if property_form.property_type.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ property_form.property_type.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Occupancy <span style="color: #e53e3e;">*</span></label>
+                            {{ property_form.occupancy }}
+                            {% if property_form.occupancy.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ property_form.occupancy.errors|join:", " }}</span>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Construction Type</label>
+                            {{ property_form.construction_type }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Building Area (Sq m / ft)</label>
+                            {{ property_form.building_area }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Number of Floors</label>
+                            {{ property_form.number_of_floors }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Repair Estimate (Rs.)</label>
+                            {{ property_form.repair_estimate }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Damage Description <span style="color: #e53e3e;">*</span></label>
+                            {{ property_form.damage_description }}
+                            {% if property_form.damage_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ property_form.damage_description.errors|join:", " }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION B: INSURER -->
+    <div style="margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
+                Section B — Insurer Particulars
+            </h3>
+            <a href="/insurers/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+                + Add new Insurer &nearr;
+            </a>
+        </div>
+        <div class="form-group" style="max-width: 500px;">
+            <label class="form-label" for="id_insurer">Select Insurer <span style="color: #e53e3e;">*</span></label>
+            {{ claim_form.insurer }}
+            {% if claim_form.insurer.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.insurer.errors|join:", " }}</span>{% endif %}
+            <span style="font-size: 0.775rem; color: #718096; margin-top: 0.2rem;">Choosing an insurer filters the available policies below.</span>
+        </div>
+    </div>
+
+    <!-- SECTION C: INSURED -->
+    <div style="margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
+                Section C — Insured Particulars
+            </h3>
+            <a href="/insured/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+                + Add new Insured &nearr;
+            </a>
+        </div>
+        <div class="form-group" style="max-width: 500px;">
+            <label class="form-label" for="id_insured">Select Insured Party <span style="color: #e53e3e;">*</span></label>
+            {{ claim_form.insured }}
+            {% if claim_form.insured.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.insured.errors|join:", " }}</span>{% endif %}
+        </div>
+    </div>
+
+    <!-- SECTION D: POLICY -->
+    <div style="margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
+                Section D — Underwriting Policy
+            </h3>
+            <a href="/policies/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+                + Add new Policy &nearr;
+            </a>
+        </div>
+        <div class="form-group" style="max-width: 500px;">
+            <label class="form-label" for="id_policy">Select Policy <span style="color: #e53e3e;">*</span></label>
+            {{ claim_form.policy }}
+            {% if claim_form.policy.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.policy.errors|join:", " }}</span>{% endif %}
+        </div>
+    </div>
+
+    <!-- SECTION E: LOSS -->
+    <div style="margin-bottom: 2rem;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+            Section E — Loss Particulars &amp; Site Details
+        </h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.date_of_loss.id_for_label }}">Date of Loss <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.date_of_loss }}
+                {% if claim_form.date_of_loss.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.date_of_loss.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.nature_of_loss.id_for_label }}">Nature of Loss <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.nature_of_loss }}
+                {% if claim_form.nature_of_loss.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.nature_of_loss.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.claimed_amount.id_for_label }}">Initial Claimed Amount (Rs.)</label>
+                {{ claim_form.claimed_amount }}
+                {% if claim_form.claimed_amount.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.claimed_amount.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.contact_person.id_for_label }}">Contact Person at Site</label>
+                {{ claim_form.contact_person }}
+                {% if claim_form.contact_person.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.contact_person.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.contact_phone.id_for_label }}">Contact Phone</label>
+                {{ claim_form.contact_phone }}
+                {% if claim_form.contact_phone.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.contact_phone.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="{{ claim_form.contact_email.id_for_label }}">Contact Email</label>
+                {{ claim_form.contact_email }}
+                {% if claim_form.contact_email.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.contact_email.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label" for="{{ claim_form.loss_location.id_for_label }}">Loss Location / Site Address <span style="color: #e53e3e;">*</span></label>
+                {{ claim_form.loss_location }}
+                {% if claim_form.loss_location.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.loss_location.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label" for="{{ claim_form.claim_description.id_for_label }}">Loss Description &amp; Narrative</label>
+                {{ claim_form.claim_description }}
+                {% if claim_form.claim_description.errors %}<span style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.2rem; display: block;">{{ claim_form.claim_description.errors|join:", " }}</span>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Button Strip -->
+    <div style="display: flex; gap: 1rem; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">
+            Save &amp; Create Claim
+        </button>
+        <a href="/claims/" class="btn btn-outline" style="padding: 0.75rem 1.5rem;">Cancel</a>
+    </div>
+</form>
+
+{{ policy_insurer_map|json_script:"policy-insurer-map-data" }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const surveyTypeSelect = document.getElementById('id_survey_type');
+        const container = document.getElementById('surveyTypeDetailContainer');
+        const header = document.getElementById('surveyDetailHeader');
+        const panels = document.querySelectorAll('.survey-detail-panel');
+        const insurerSelect = document.getElementById('id_insurer');
+        const policySelect = document.getElementById('id_policy');
+        
+        // Survey type map: id -> code
+        const surveyTypeCodeMap = {
+            {% for st in survey_types %}
+                "{{ st.id }}": "{{ st.code|upper }}",
+            {% endfor %}
+        };
+
+        const policyMapElem = document.getElementById('policy-insurer-map-data');
+        const policyInsurerMap = policyMapElem ? JSON.parse(policyMapElem.textContent) : {};
+
+        // Cache all policy options
+        const allPolicyOptions = Array.from(policySelect.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            insurerId: policyInsurerMap[opt.value] || null
+        }));
+
+        function updatePolicyOptions() {
+            const selectedInsurerId = insurerSelect.value;
+            const currentPolicyVal = policySelect.value;
+            policySelect.innerHTML = '';
+
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.text = '---------';
+            policySelect.appendChild(defaultOpt);
+
+            allPolicyOptions.forEach(opt => {
+                if (!opt.value) return;
+                if (!selectedInsurerId || String(opt.insurerId) === String(selectedInsurerId)) {
+                    const el = document.createElement('option');
+                    el.value = opt.value;
+                    el.text = opt.text;
+                    if (opt.value === currentPolicyVal) {
+                        el.selected = true;
+                    }
+                    policySelect.appendChild(el);
+                }
+            });
+        }
+
+        function updateSurveyDetailPanel() {
+            const selectedId = surveyTypeSelect.value;
+            const code = surveyTypeCodeMap[selectedId] || "";
+
+            panels.forEach(p => {
+                p.style.display = 'none';
+                // Disable inputs of inactive panels so they aren't validated or submitted
+                Array.from(p.querySelectorAll('input, select, textarea')).forEach(inp => {
+                    inp.disabled = true;
+                });
+            });
+
+            if (!code) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+
+            let activePanelId = '';
+            if (code === 'FIRE') {
+                activePanelId = 'panel_FIRE';
+                header.textContent = 'Fire Claim Specific Details';
+            } else if (code === 'ENG' || code === 'ENGINEERING') {
+                activePanelId = 'panel_ENG';
+                header.textContent = 'Engineering / Machinery Breakdown Details';
+            } else if (code === 'MARINE' || code === 'MAR') {
+                activePanelId = 'panel_MARINE';
+                header.textContent = 'Marine Transit & Cargo Details';
+            } else if (code === 'PROPERTY' || code === 'PROP') {
+                activePanelId = 'panel_PROPERTY';
+                header.textContent = 'Property Damage Details';
+            }
+
+            const activePanel = document.getElementById(activePanelId);
+            if (activePanel) {
+                activePanel.style.display = 'block';
+                Array.from(activePanel.querySelectorAll('input, select, textarea')).forEach(inp => {
+                    inp.disabled = false;
+                });
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        surveyTypeSelect.addEventListener('change', updateSurveyDetailPanel);
+        insurerSelect.addEventListener('change', updatePolicyOptions);
+
+        // Initial trigger
+        updateSurveyDetailPanel();
+        if (insurerSelect.value) {
+            updatePolicyOptions();
+        }
+    })();
+</script>
+{% endblock %}

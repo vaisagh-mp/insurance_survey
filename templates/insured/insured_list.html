@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Insured Parties - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Insured Entities &amp; Claimants</h1>
+        <p class="page-subtitle">Commercial policyholders, corporate clients, and insured individuals</p>
+    </div>
+    <div>
+        <a href="/insured/add/" class="btn btn-primary">+ Add Insured</a>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Name / Entity</th>
+                    <th>Company Name</th>
+                    <th>Contact Person</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>GSTIN</th>
+                    <th>City / State</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ins in insured_parties %}
+                <tr>
+                    <td><strong>{{ ins.name }}</strong></td>
+                    <td>{{ ins.company_name|default:"-" }}</td>
+                    <td>{{ ins.contact_person }}</td>
+                    <td>{{ ins.phone }}</td>
+                    <td>{{ ins.email }}</td>
+                    <td><code>{{ ins.gstin|default:"-" }}</code></td>
+                    <td>{{ ins.city }}, {{ ins.state }}</td>
+                    <td>
+                        {% if ins.is_active %}
+                            <span class="status-pill pill-submitted">Active</span>
+                        {% else %}
+                            <span class="status-pill pill-closed">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="/insured/{{ ins.id }}/edit/" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Edit</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: #a0aec0; padding: 2rem;">No insured parties registered.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

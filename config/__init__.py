@@ -1,0 +1,1 @@
+"""Insurance Surveyor configuration package."""

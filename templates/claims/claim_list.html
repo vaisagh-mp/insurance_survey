@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}All Claims - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Claims Directory</h1>
+        <p class="page-subtitle">Showing {{ total_count }} total claims in pipeline</p>
+    </div>
+    {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+        <div>
+            <a href="/claims/create/" class="btn btn-primary" style="font-size: 0.85rem;">+ Register New Claim</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Quick Filter Pills -->
+<div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+    <a href="/claims/" class="btn {% if not current_status and not current_filter %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">All</a>
+    <a href="/claims/?status=NEW" class="btn {% if current_status == 'NEW' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">New</a>
+    <a href="/claims/?filter=unassigned" class="btn {% if current_filter == 'unassigned' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Unassigned</a>
+    <a href="/claims/?status=ASSIGNED" class="btn {% if current_status == 'ASSIGNED' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Assigned</a>
+    <a href="/claims/?filter=in_progress" class="btn {% if current_filter == 'in_progress' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">In Progress</a>
+    <a href="/claims/?status=REPORT_SUBMITTED" class="btn {% if current_status == 'REPORT_SUBMITTED' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Submitted</a>
+    <a href="/claims/?status=CLOSED" class="btn {% if current_status == 'CLOSED' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Closed</a>
+</div>
+
+<!-- Form Filters -->
+<form method="get" action="/claims/" class="filter-bar">
+    {% if current_filter %}
+        <input type="hidden" name="filter" value="{{ current_filter }}">
+    {% endif %}
+
+    <div class="filter-group">
+        <label class="filter-label">Status:</label>
+        <select name="status" class="form-control" style="width: auto;" onchange="this.form.submit()">
+            <option value="">-- All Statuses --</option>
+            {% for code, label in claim_statuses %}
+                <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label class="filter-label">Survey Type:</label>
+        <select name="survey_type" class="form-control" style="width: auto;" onchange="this.form.submit()">
+            <option value="">-- All Survey Types --</option>
+            {% for st in survey_types %}
+                <option value="{{ st.id }}" {% if current_survey_type == st.id|stringformat:"i" %}selected{% endif %}>{{ st.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-outline" style="padding: 0.45rem 0.85rem; font-size: 0.825rem;">Apply Filter</button>
+    <a href="/claims/" style="font-size: 0.825rem; color: #718096; text-decoration: none; margin-left: auto;">Clear Filters</a>
+</form>
+
+<!-- Claims Table -->
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th style="width: 14%;">Claim No.</th>
+                    <th style="width: 12%;">Type</th>
+                    <th style="width: 18%;">Insurer</th>
+                    <th style="width: 18%;">Insured</th>
+                    <th style="width: 16%;">Surveyor</th>
+                    <th style="width: 12%;">Status</th>
+                    <th style="width: 10%;">Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in page_obj %}
+                <tr>
+                    <td>
+                        <a href="/claims/{{ claim.id }}/" style="color: #2b6cb0; font-weight: 700; text-decoration: none;">
+                            {{ claim.claim_number }}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #edf2f7; color: #2d3748;">{{ claim.survey_type.name }}</span>
+                    </td>
+                    <td>{{ claim.insurer.company_name }}</td>
+                    <td>{{ claim.insured.name }}</td>
+                    <td>
+                        {% if claim.current_surveyor %}
+                            {{ claim.current_surveyor.get_full_name|default:claim.current_surveyor.username }}
+                        {% else %}
+                            <span style="color: #d97706; font-style: italic; font-size: 0.825rem;">Unassigned</span>
+                            {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                <a href="/claims/{{ claim.id }}/?tab=assignment" style="font-size: 0.75rem; color: #3182ce; margin-left: 0.35rem; text-decoration: none; font-weight: 600;">Assign &nearr;</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-pill {% if claim.status == 'NEW' %}pill-new{% elif claim.status == 'ASSIGNED' %}pill-assigned{% elif claim.status == 'INSPECTION_PENDING' %}pill-inspection{% elif claim.status == 'REPORT_SUBMITTED' %}pill-submitted{% elif claim.status == 'CLOSED' %}pill-closed{% else %}pill-ila{% endif %}">
+                            {{ claim.status_display_with_stage }}
+                        </span>
+                    </td>
+                    <td style="color: #718096; font-size: 0.825rem;">{{ claim.created_at|date:"d M Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #a0aec0; padding: 2.5rem;">
+                        No claims match the selected criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination-wrapper">
+        <div>
+            Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </div>
+        <div class="pagination-links">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_survey_type %}&survey_type={{ current_survey_type }}{% endif %}{% if current_filter %}&filter={{ current_filter }}{% endif %}">&laquo; Prev</a>
+            {% endif %}
+
+            <span class="current">{{ page_obj.number }}</span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_survey_type %}&survey_type={{ current_survey_type }}{% endif %}{% if current_filter %}&filter={{ current_filter }}{% endif %}">Next &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

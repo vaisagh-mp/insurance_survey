@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="/insurers/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none;">&larr; Back to Insurers</a>
+        <h1 class="page-title" style="margin-top: 0.5rem;">{{ title }}</h1>
+    </div>
+</div>
+
+<div class="form-card">
+    <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">Company Name *</label>
+                {{ form.company_name }}
+                {% if form.company_name.errors %}<div class="form-errors">{{ form.company_name.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Branch Name *</label>
+                {{ form.branch_name }}
+                {% if form.branch_name.errors %}<div class="form-errors">{{ form.branch_name.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Contact Person *</label>
+                {{ form.contact_person }}
+                {% if form.contact_person.errors %}<div class="form-errors">{{ form.contact_person.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Phone Number *</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="form-errors">{{ form.phone.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email Address *</label>
+                {{ form.email }}
+                {% if form.email.errors %}<div class="form-errors">{{ form.email.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">City *</label>
+                {{ form.city }}
+                {% if form.city.errors %}<div class="form-errors">{{ form.city.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">State *</label>
+                {{ form.state }}
+                {% if form.state.errors %}<div class="form-errors">{{ form.state.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">PIN / Postal Code *</label>
+                {{ form.pincode }}
+                {% if form.pincode.errors %}<div class="form-errors">{{ form.pincode.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Office Address *</label>
+                {{ form.address }}
+                {% if form.address.errors %}<div class="form-errors">{{ form.address.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1; display: flex; flex-direction: row; align-items: center; gap: 0.5rem;">
+                {{ form.is_active }}
+                <label class="form-label" style="margin: 0;">Active Insurer Status</label>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary">Save Insurer</button>
+            <a href="/insurers/" class="btn btn-outline">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock content %}

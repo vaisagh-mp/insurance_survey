@@ -1,0 +1,1690 @@
+{% extends 'base.html' %}
+
+{% block title %}Claim {{ claim.claim_number }} - Workspace{% endblock %}
+
+{% block content %}
+<!-- Persistent Claim Header -->
+<div class="page-header" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 1rem;">
+    <div>
+        <a href="/claims/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+            &larr; Back to Claims List
+        </a>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+            <h1 class="page-title" style="margin: 0; font-size: 1.75rem;">{{ claim.claim_number }}</h1>
+            <span class="status-pill {% if claim.status == 'NEW' %}pill-new{% elif claim.status == 'ASSIGNED' %}pill-assigned{% elif claim.status == 'INSPECTION_PENDING' %}pill-inspection{% elif claim.status == 'REPORT_SUBMITTED' %}pill-submitted{% elif claim.status == 'CLOSED' %}pill-closed{% else %}pill-ila{% endif %}" style="font-size: 0.875rem; padding: 0.35rem 0.85rem;">
+                {{ claim.status_display_with_stage }}
+            </span>
+            <span class="badge" style="background-color: #edf2f7; color: #4a5568; font-size: 0.8rem;">
+                {{ claim.survey_type.name }} ({{ claim.survey_type.code }})
+            </span>
+        </div>
+        <div style="font-size: 0.875rem; color: #718096; margin-top: 0.35rem;">
+            <strong>Insured:</strong> {{ claim.insured.name }} &bull;
+            <strong>Insurer:</strong> {{ claim.insurer.company_name }} ({{ claim.insurer.branch_name }}) &bull;
+            <strong>Assigned Surveyor:</strong> 
+            {% if claim.current_surveyor %}
+                <span style="color: #2b6cb0; font-weight: 600;">{{ claim.current_surveyor.get_full_name|default:claim.current_surveyor.username }}</span>
+            {% else %}
+                <span style="color: #d97706; font-style: italic;">Unassigned</span>
+                {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                    <a href="?tab=assignment" class="btn btn-primary" style="padding: 0.15rem 0.5rem; font-size: 0.75rem; margin-left: 0.4rem; text-decoration: none;">+ Assign</a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+        {% if claim.status == 'REPORT_SUBMITTED' or claim.status == 'RESUBMITTED' or claim.status == 'FSR_PREPARED' %}
+        <div style="margin-top: 0.75rem;">
+            <button type="button"
+                    id="btn-approve-close"
+                    onclick="document.getElementById('modal-approve-close').style.display='flex'"
+                    class="btn"
+                    style="background: linear-gradient(135deg,#065f46,#047857); color:#fff; border:none; padding:0.45rem 1.1rem; font-size:0.85rem; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; box-shadow:0 2px 8px rgba(4,120,87,0.25);">
+                ✅ Approve &amp; Close Claim
+            </button>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- 13-Tab Navigation Bar -->
+<div class="workspace-tabs-wrapper">
+    <nav class="workspace-tabs-nav">
+        <a href="?tab=overview" class="tab-item {% if active_tab == 'overview' %}active{% endif %}">Overview</a>
+        <a href="?tab=assignment" class="tab-item {% if active_tab == 'assignment' %}active{% endif %}">Assignment</a>
+        <a href="?tab=policy" class="tab-item {% if active_tab == 'policy' %}active{% endif %}">Policy</a>
+        <a href="?tab=inspection" class="tab-item {% if active_tab == 'inspection' %}active{% endif %}">Inspection</a>
+        <a href="?tab=ila" class="tab-item {% if active_tab == 'ila' %}active{% endif %}">ILA</a>
+        <a href="?tab=lor" class="tab-item {% if active_tab == 'lor' %}active{% endif %}">LOR</a>
+        <a href="?tab=documents" class="tab-item {% if active_tab == 'documents' %}active{% endif %}">Documents</a>
+        <a href="?tab=photos" class="tab-item {% if active_tab == 'photos' %}active{% endif %}">Photos</a>
+        <a href="?tab=invoices" class="tab-item {% if active_tab == 'invoices' %}active{% endif %}">Invoices</a>
+        <a href="?tab=assessment" class="tab-item {% if active_tab == 'assessment' %}active{% endif %}">Assessment</a>
+        <a href="?tab=isr" class="tab-item {% if active_tab == 'isr' %}active{% endif %}">ISR</a>
+        <a href="?tab=fsr" class="tab-item {% if active_tab == 'fsr' %}active{% endif %}">FSR</a>
+        <a href="?tab=activity" class="tab-item {% if active_tab == 'activity' %}active{% endif %}">Activity</a>
+    </nav>
+</div>
+
+<!-- Tab Content Panels -->
+<div class="workspace-panel-container">
+
+    <!-- TAB 1: OVERVIEW -->
+    {% if active_tab == 'overview' %}
+        <div class="form-card" style="max-width: 100%;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin-bottom: 1.25rem;">Claim Particulars &amp; Snapshot</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
+                <div>
+                    <div class="stat-title">Claim Number</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #1a202c; margin-top: 0.2rem;">{{ claim.claim_number }}</div>
+                    {% if claim.report_number %}
+                        <div style="font-size: 0.8rem; color: #718096;">Report Ref: {{ claim.report_number }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="stat-title">Priority</div>
+                    <div style="margin-top: 0.25rem;">
+                        <span class="badge {% if claim.priority == 'HIGH' %}badge-danger{% else %}badge-success{% endif %}">
+                            {{ claim.get_priority_display }}
+                        </span>
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Currently Assigned Surveyor</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; margin-top: 0.2rem;">
+                        {% if claim.current_surveyor %}
+                            {{ claim.current_surveyor.get_full_name|default:claim.current_surveyor.username }}
+                            <div style="font-size: 0.8rem; color: #718096;">Email: {{ claim.current_surveyor.email }}</div>
+                        {% else %}
+                            <span style="color: #d97706; font-style: italic;">No active surveyor assigned</span>
+                            {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                <div style="margin-top: 0.4rem;">
+                                    <a href="?tab=assignment" class="btn btn-primary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; text-decoration: none;">+ Assign Surveyor</a>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Date &amp; Nature of Loss</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: #2d3748; margin-top: 0.2rem;">
+                        {{ claim.date_of_loss|date:"d M Y" }}
+                    </div>
+                    <div style="font-size: 0.85rem; color: #718096;">{{ claim.nature_of_loss }}</div>
+                </div>
+                <div>
+                    <div class="stat-title">Loss Location</div>
+                    <div style="font-size: 0.95rem; color: #2d3748; margin-top: 0.2rem;">{{ claim.loss_location }}</div>
+                </div>
+                <div>
+                    <div class="stat-title">Claimed Amount</div>
+                    <div style="font-size: 1.15rem; font-weight: 700; color: #059669; margin-top: 0.2rem;">
+                        {% if claim.claimed_amount %}
+                            Rs. {{ claim.claimed_amount|floatformat:2 }}
+                        {% else %}
+                            <span style="color: #a0aec0; font-size: 0.95rem; font-weight: normal;">Not specified</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Instruction Details</div>
+                    <div style="font-size: 0.95rem; font-weight: 500; color: #2d3748; margin-top: 0.2rem;">
+                        Source: {{ claim.instruction_source }}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #718096;">Date: {{ claim.instruction_date|date:"d M Y" }}</div>
+                </div>
+                <div>
+                    <div class="stat-title">Contact Person at Site</div>
+                    <div style="font-size: 0.95rem; font-weight: 500; color: #2d3748; margin-top: 0.2rem;">
+                        {{ claim.contact_person|default:"Not specified" }}
+                    </div>
+                    {% if claim.contact_phone %}<div style="font-size: 0.8rem; color: #718096;">Tel: {{ claim.contact_phone }}</div>{% endif %}
+                </div>
+            </div>
+
+            {% if claim.claim_description %}
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #edf2f7;">
+                    <div class="stat-title">Loss Description</div>
+                    <p style="margin-top: 0.4rem; color: #4a5568; font-size: 0.9rem; line-height: 1.6; white-space: pre-line;">{{ claim.claim_description }}</p>
+                </div>
+            {% endif %}
+
+            {% if survey_details %}
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #edf2f7;">
+                    <h4 style="font-size: 1rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">
+                        Survey Specific Particulars ({{ claim.survey_type.name }})
+                    </h4>
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; font-size: 0.875rem;">
+                        {% if claim.survey_type.code == 'FIRE' %}
+                            <div><strong>Occupancy:</strong> {{ survey_details.occupancy|default:"N/A" }} &bull; <strong>Construction:</strong> {{ survey_details.construction_details|default:"N/A" }}</div>
+                            <div style="margin-top: 0.25rem;"><strong>Point of Origin:</strong> {{ survey_details.point_of_origin|default:"N/A" }} &bull; <strong>Cause:</strong> {{ survey_details.fire_cause|default:"Under investigation" }}</div>
+                        {% elif claim.survey_type.code == 'ENG' or claim.survey_type.code == 'ENGINEERING' %}
+                            <div><strong>Machine:</strong> {{ survey_details.equipment_name|default:"N/A" }} ({{ survey_details.manufacturer|default:"N/A" }} {{ survey_details.model|default:"" }})</div>
+                            <div style="margin-top: 0.25rem;"><strong>Serial No:</strong> {{ survey_details.serial_number|default:"N/A" }} &bull; <strong>Breakdown:</strong> {{ survey_details.breakdown_description|default:"N/A" }}</div>
+                        {% elif claim.survey_type.code == 'MAR' or claim.survey_type.code == 'MARINE' %}
+                            <div><strong>Transit Mode:</strong> {{ survey_details.vessel_name|default:"N/A" }} &bull; <strong>Voyage:</strong> {{ survey_details.voyage_number|default:"N/A" }}</div>
+                            <div style="margin-top: 0.25rem;"><strong>Route:</strong> {{ survey_details.port_of_loading|default:"N/A" }} &rarr; {{ survey_details.port_of_discharge|default:"N/A" }} &bull; <strong>B/L:</strong> {{ survey_details.bill_of_lading_number|default:"N/A" }}</div>
+                        {% else %}
+                            <div><strong>Property Type:</strong> {{ survey_details.property_type|default:"N/A" }} &bull; <strong>Occupancy:</strong> {{ survey_details.occupancy|default:"N/A" }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 2: ASSIGNMENT -->
+    {% if active_tab == 'assignment' %}
+        {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+            <div class="form-card" style="max-width: 100%; margin-bottom: 2rem; border-top: 4px solid #3182ce;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+                    <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
+                        {% if claim.current_surveyor %}Reassign Surveyor{% else %}Assign Claim to Surveyor{% endif %}
+                    </h3>
+                    {% if claim.current_surveyor %}
+                        <span style="font-size: 0.85rem; color: #718096;">Currently assigned to: <strong style="color: #2b6cb0;">{{ claim.current_surveyor.get_full_name|default:claim.current_surveyor.username }}</strong></span>
+                    {% endif %}
+                </div>
+                <p style="font-size: 0.85rem; color: #718096; margin-bottom: 1.25rem;">
+                    Select an active surveyor from the roster. Assigning a surveyor grants them immediate access in their surveyor portal to schedule inspections, issue LORs, and submit survey reports.
+                </p>
+
+                <form method="post" action="/claims/{{ claim.id }}/assign/">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="id_surveyor_select">Select Surveyor <span style="color: #e53e3e;">*</span></label>
+                            <select name="surveyor" id="id_surveyor_select" class="form-control" required>
+                                <option value="">-- Choose Active Surveyor --</option>
+                                {% for s in available_surveyors %}
+                                    <option value="{{ s.id }}" {% if claim.current_surveyor and claim.current_surveyor.id == s.id %}selected{% endif %}>
+                                        {{ s.get_full_name|default:s.username }} ({{ s.email }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="id_assign_priority">Priority</label>
+                            <select name="priority" id="id_assign_priority" class="form-control">
+                                <option value="LOW" {% if claim.priority == 'LOW' %}selected{% endif %}>Low</option>
+                                <option value="MEDIUM" {% if claim.priority == 'MEDIUM' or not claim.priority %}selected{% endif %}>Medium</option>
+                                <option value="HIGH" {% if claim.priority == 'HIGH' %}selected{% endif %}>High</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="id_assign_due_date">Due Date</label>
+                            <input type="date" name="due_date" id="id_assign_due_date" class="form-control">
+                            <span style="font-size: 0.775rem; color: #718096; margin-top: 0.2rem;">Leave blank to default to 14 days from today</span>
+                        </div>
+                        {% if claim.current_surveyor %}
+                            <div class="form-group">
+                                <label class="form-label" for="id_assign_remarks">Reassignment Remarks</label>
+                                <input type="text" name="remarks" id="id_assign_remarks" class="form-control" placeholder="Reason for reassigning...">
+                            </div>
+                        {% endif %}
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label" for="id_assign_instructions">Instructions / Scope of Survey</label>
+                            <textarea name="instructions" id="id_assign_instructions" class="form-control" rows="2" placeholder="e.g. Please conduct preliminary site inspection within 48 hours and submit ILA."></textarea>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.25rem;">
+                        <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; font-size: 0.95rem;">
+                            {% if claim.current_surveyor %}Reassign Surveyor{% else %}Assign Surveyor{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+
+        <div class="card-table-wrapper">
+            <div class="card-table-header">
+                <div class="card-table-title">Surveyor Assignment History</div>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Surveyor</th>
+                            <th>Assigned By</th>
+                            <th>Assigned Date</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                            <th>Instructions / Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assignments %}
+                            <tr>
+                                <td>
+                                    <strong>{{ a.surveyor.get_full_name|default:a.surveyor.username }}</strong>
+                                    <div style="font-size: 0.775rem; color: #718096;">{{ a.surveyor.email }}</div>
+                                </td>
+                                <td>{{ a.assigned_by.get_full_name|default:a.assigned_by.username }}</td>
+                                <td>{{ a.assigned_at|date:"d M Y, H:i" }}</td>
+                                <td>{{ a.due_date|date:"d M Y"|default:"None" }}</td>
+                                <td>
+                                    <span class="status-pill {% if a.status == 'ASSIGNED' %}pill-assigned{% elif a.status == 'IN_PROGRESS' %}pill-inspection{% elif a.status == 'COMPLETED' %}pill-submitted{% else %}pill-closed{% endif %}">
+                                        {{ a.get_status_display }}
+                                    </span>
+                                </td>
+                                <td style="font-size: 0.85rem; color: #4a5568;">
+                                    {{ a.instructions|default:"—" }}
+                                    {% if a.remarks %}<div style="font-style: italic; color: #718096; margin-top: 0.2rem;">Remarks: {{ a.remarks }}</div>{% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: #718096; padding: 2rem;">No assignment records recorded.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Upload Document Form -->
+        {% if claim_document_form and request.user.role == 'SURVEYOR' or request.user.role == 'ADMIN' or request.user.is_superuser %}
+            <div class="form-card" style="max-width: 100%; margin-top: 1.5rem;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    + Upload Claim Document
+                </h4>
+                <form method="post" action="/claims/{{ claim.id }}/documents/upload/" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Document Type <span style="color: #e53e3e;">*</span></label>
+                            {{ claim_document_form.document_type }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reference / Bill / Policy Number</label>
+                            {{ claim_document_form.document_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Document Date</label>
+                            {{ claim_document_form.document_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">File <span style="color: #e53e3e;">*</span></label>
+                            {{ claim_document_form.file }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Description / Remarks</label>
+                            {{ claim_document_form.description }}
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem;">
+                            Upload Document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- TAB 3: POLICY -->
+    {% if active_tab == 'policy' %}
+        <div class="form-card" style="max-width: 100%;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin-bottom: 1.25rem;">Policy Coverage &amp; Terms</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
+                <div>
+                    <div class="stat-title">Policy Number</div>
+                    <div style="font-size: 1.15rem; font-weight: 700; color: #2b6cb0; margin-top: 0.2rem;">{{ claim.policy.policy_number }}</div>
+                    <div style="font-size: 0.8rem; color: #718096;">Type: {{ claim.policy.policy_type }}</div>
+                </div>
+                <div>
+                    <div class="stat-title">Underwriting Insurer</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; color: #1a202c; margin-top: 0.2rem;">{{ claim.insurer.company_name }}</div>
+                    <div style="font-size: 0.8rem; color: #718096;">Branch: {{ claim.insurer.branch_name }}</div>
+                </div>
+                <div>
+                    <div class="stat-title">Policy Validity Period</div>
+                    <div style="font-size: 0.95rem; font-weight: 600; color: #2d3748; margin-top: 0.2rem;">
+                        {{ claim.policy.start_datetime|date:"d M Y" }} &rarr; {{ claim.policy.end_datetime|date:"d M Y" }}
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Sum Insured</div>
+                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669; margin-top: 0.2rem;">
+                        Rs. {{ claim.policy.sum_insured|floatformat:2 }}
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Policy Excess / Deductible</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: #d97706; margin-top: 0.2rem;">
+                        Rs. {{ claim.policy.excess|floatformat:2 }}
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-title">Commodity / Subject Matter</div>
+                    <div style="font-size: 0.95rem; font-weight: 600; color: #2d3748; margin-top: 0.2rem;">{{ claim.policy.commodity }}</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #edf2f7;">
+                <div class="stat-title">Subject Matter Detailed Description</div>
+                <p style="margin-top: 0.4rem; color: #4a5568; font-size: 0.9rem; line-height: 1.6;">{{ claim.policy.subject_matter }}</p>
+            </div>
+
+            {% if claim.policy.remarks %}
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #edf2f7;">
+                    <div class="stat-title">Underwriting Remarks &amp; Endorsements</div>
+                    <p style="margin-top: 0.4rem; color: #4a5568; font-size: 0.9rem; line-height: 1.6;">{{ claim.policy.remarks }}</p>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 4: INSPECTION -->
+    {% if active_tab == 'inspection' %}
+        <!-- Existing Inspections List (Visible to all) -->
+        <div class="card-table-wrapper" style="margin-bottom: 2rem;">
+            <div class="card-table-header">
+                <div class="card-table-title">Scheduled &amp; Completed Inspections</div>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Date &amp; Time</th>
+                            <th>Surveyor</th>
+                            <th>Location</th>
+                            <th>Contact Person</th>
+                            <th>Status</th>
+                            <th>Observations Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for insp in inspections %}
+                            <tr>
+                                <td>
+                                    <strong>{{ insp.inspection_date|date:"d M Y" }}</strong>
+                                    <div style="font-size: 0.775rem; color: #718096;">{{ insp.start_time|time:"H:i" }} - {{ insp.end_time|time:"H:i" }}</div>
+                                </td>
+                                <td>{{ insp.surveyor.get_full_name|default:insp.surveyor.username }}</td>
+                                <td>{{ insp.location }}</td>
+                                <td>
+                                    {{ insp.person_contacted }}
+                                    <div style="font-size: 0.775rem; color: #718096;">{{ insp.contact_number }}</div>
+                                </td>
+                                <td>
+                                    <span class="status-pill {% if insp.status == 'COMPLETED' %}pill-submitted{% else %}pill-inspection{% endif %}">
+                                        {{ insp.get_status_display }}
+                                    </span>
+                                </td>
+                                <td style="font-size: 0.85rem; color: #4a5568; max-width: 320px;">
+                                    <div>{{ insp.observations|truncatewords:15|default:"—" }}</div>
+                                    {% if insp.extent_of_damage %}
+                                        <div style="font-size: 0.775rem; color: #2d3748; margin-top: 0.25rem;"><strong>Damage:</strong> {{ insp.extent_of_damage|truncatewords:10 }}</div>
+                                    {% endif %}
+                                    {% if insp.cause_observations %}
+                                        <div style="font-size: 0.775rem; color: #2d3748; margin-top: 0.15rem;"><strong>Cause:</strong> {{ insp.cause_observations|truncatewords:10 }}</div>
+                                    {% endif %}
+                                    {% if insp.salvage_observations %}
+                                        <div style="font-size: 0.775rem; color: #2d3748; margin-top: 0.15rem;"><strong>Salvage:</strong> {{ insp.salvage_observations|truncatewords:10 }}</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: #718096; padding: 2rem;">No inspections recorded yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Surveyor Inspection Form (Only when request.user.role == 'SURVEYOR') -->
+        {% if request.user.role == 'SURVEYOR' and inspection_form %}
+            <div class="form-card" style="max-width: 100%;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1.25rem;">
+                    Record / Update Inspection &amp; Upload Attachments
+                </h3>
+                <form method="post" action="/claims/{{ claim.id }}/inspection/save/" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {% if inspections.first %}
+                        <input type="hidden" name="inspection_id" value="{{ inspections.first.id }}">
+                    {% endif %}
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Inspection Date <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.inspection_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Start Time <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.start_time }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">End Time <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.end_time }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Inspection Status</label>
+                            {{ inspection_form.status }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Location / Site Address <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.location }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Person Contacted on Site <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.person_contacted }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Phone Number <span style="color: #e53e3e;">*</span></label>
+                            {{ inspection_form.contact_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Email</label>
+                            {{ inspection_form.contact_email }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Site Representative</label>
+                            {{ inspection_form.site_representative }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Reason for Delay (if any)</label>
+                            {{ inspection_form.reason_for_delay }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">General Survey Observations</label>
+                            {{ inspection_form.observations }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Extent of Damage Observed</label>
+                            {{ inspection_form.extent_of_damage }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Cause Observations</label>
+                            {{ inspection_form.cause_observations }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Salvage Observations</label>
+                            {{ inspection_form.salvage_observations }}
+                        </div>
+
+                        <!-- Multi-file Uploads -->
+                        <div class="form-group" style="border-top: 1px dashed #cbd5e0; padding-top: 1rem;">
+                            <label class="form-label">Upload Inspection Photos (Multi-select)</label>
+                            {{ inspection_form.photos }}
+                            <span style="font-size: 0.775rem; color: #718096;">Allowed: JPG, JPEG, PNG (Max 10MB each)</span>
+                        </div>
+                        <div class="form-group" style="border-top: 1px dashed #cbd5e0; padding-top: 1rem;">
+                            <label class="form-label">Upload Inspection Documents (Multi-select)</label>
+                            {{ inspection_form.documents }}
+                            <span style="font-size: 0.775rem; color: #718096;">Allowed: PDF, JPG, PNG (Max 10MB each)</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+                        <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem;">
+                            Save Inspection &amp; Upload Files
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- TAB 5: ILA (Immediate Loss Advice) -->
+    {% if active_tab == 'ila' %}
+        <div class="form-card" style="max-width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h3 style="font-size: 1.2rem; font-weight: 700; color: #1a202c; margin: 0;">
+                        Immediate Loss Advice (ILA) {% if ila_report %}#{{ ila_report.report_number }}{% endif %}
+                    </h3>
+                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.2rem;">
+                        Status: <strong>{{ ila_report.get_status_display|default:"Not Yet Drafted" }}</strong>
+                    </div>
+                </div>
+
+                <!-- Action Controls Strip -->
+                {% if ila_report %}
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <a href="/claims/{{ claim.id }}/report/ila/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                            👁️ Preview PDF
+                        </a>
+                        <form method="post" action="/claims/{{ claim.id }}/report/ila/generate-pdf/" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                                📄 Generate PDF Document
+                            </button>
+                        </form>
+                        {% if request.user.role == 'SURVEYOR' and ila_report.status == 'DRAFT' %}
+                            <form method="post" action="/claims/{{ claim.id }}/report/ila/submit/" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
+                                    🚀 Submit Report
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- If Surveyor and Draft (or New): Show Interactive Form -->
+            {% if request.user.role == 'SURVEYOR' and ila_form %}
+                <form method="post" action="/claims/{{ claim.id }}/report/ila/save/">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        <!-- Report & Policy Particulars -->
+                        <div class="form-group">
+                            <label class="form-label">Report Number <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.report_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Report Date <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.report_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Number <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.policy_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Type <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.policy_type }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Period</label>
+                            {{ ila_form.policy_period }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Commodity / Property <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.commodity }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sum Insured (Rs.) <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.sum_insured }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Excess (Rs.) <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.policy_excess }}
+                        </div>
+
+                        <!-- Instruction Details -->
+                        <div class="form-group">
+                            <label class="form-label">Instruction Date <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.instruction_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Instruction Source <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.instruction_source }}
+                        </div>
+
+                        <!-- Loss & Reserves -->
+                        <div class="form-group">
+                            <label class="form-label">Estimated Loss (Rs.) <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.estimated_loss }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Budgetary Reserve (Rs.) <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.budgetary_reserve }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Claimed Amount (Rs.) <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.claimed_amount }}
+                        </div>
+
+                        <!-- Inspection Visit Details -->
+                        <div class="form-group">
+                            <label class="form-label">Visit Date <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.visit_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Visit Start Time <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.visit_start_time }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Visit End Time <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.visit_end_time }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Inspection Location <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.inspection_location }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Person Contacted <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.person_contacted }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Phone <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.contact_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Email</label>
+                            {{ ila_form.contact_email }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reason for Delay (if any)</label>
+                            {{ ila_form.reason_for_delay }}
+                        </div>
+
+                        <!-- Observations & Narratives -->
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Extent of Damage <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.extent_of_damage }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Cause of Damage <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.cause_of_damage }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Survey &amp; Inspection Narrative <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.survey_and_inspection }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Salvage Prospect <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.salvage_prospect }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Liability Remarks <span style="color: #e53e3e;">*</span></label>
+                            {{ ila_form.policy_liability }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Remarks / Next Actions</label>
+                            {{ ila_form.remarks }}
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; display: flex; gap: 1rem;">
+                        <button type="submit" class="btn btn-primary">Save Draft</button>
+                    </div>
+                </form>
+            {% else %}
+                <!-- Admin Read-Only Presentation -->
+                {% if ila_report %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem;">
+                        <div>
+                            <div class="stat-title">Estimated Loss</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: #c53030; margin-top: 0.2rem;">Rs. {{ ila_report.estimated_loss|floatformat:2 }}</div>
+                        </div>
+                        <div>
+                            <div class="stat-title">Budgetary Reserve</div>
+                            <div style="font-size: 1.15rem; font-weight: 700; color: #d97706; margin-top: 0.2rem;">Rs. {{ ila_report.budgetary_reserve|floatformat:2 }}</div>
+                        </div>
+                        <div>
+                            <div class="stat-title">Claimed Amount</div>
+                            <div style="font-size: 1.15rem; font-weight: 600; color: #2d3748; margin-top: 0.2rem;">Rs. {{ ila_report.claimed_amount|floatformat:2 }}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #edf2f7;">
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Extent of Damage:</strong> {{ ila_report.extent_of_damage }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Cause of Damage:</strong> {{ ila_report.cause_of_damage }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Policy Liability:</strong> {{ ila_report.policy_liability }}</p>
+                    </div>
+                {% else %}
+                    <div style="text-align: center; color: #718096; padding: 3rem 1rem;">No ILA report prepared yet.</div>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 6: LOR (List of Requirements) -->
+    {% if active_tab == 'lor' %}
+        <div class="card-table-wrapper" style="margin-bottom: 2rem;">
+            <div class="card-table-header">
+                <div class="card-table-title">Requirements (LOR Items)</div>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Requirement</th>
+                            <th>Requested From</th>
+                            <th>Requested Date</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                            <th>Received Date</th>
+                            <th>Linked Document</th>
+                            {% if request.user.role == 'SURVEYOR' or request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                <th>Update Status</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in lor_items %}
+                            <tr>
+                                <td style="font-weight: 600; color: #2d3748;">
+                                    {{ req.description }}
+                                    {% if req.remarks %}<div style="font-size: 0.775rem; color: #718096;">{{ req.remarks }}</div>{% endif %}
+                                </td>
+                                <td>{{ req.get_requested_from_display }}</td>
+                                <td>{{ req.requested_date|date:"d M Y" }}</td>
+                                <td>{{ req.due_date|date:"d M Y"|default:"—" }}</td>
+                                <td>
+                                    <span class="status-pill {% if req.status == 'VERIFIED' %}pill-submitted{% elif req.status == 'RECEIVED' %}pill-assigned{% elif req.status == 'REJECTED' %}pill-query{% else %}pill-inspection{% endif %}">
+                                        {{ req.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ req.received_date|date:"d M Y"|default:"Pending" }}</td>
+                                <td>
+                                    {% if req.related_document %}
+                                        <a href="{% url 'secure_media' path=req.related_document.file.name %}" target="_blank" style="color: #2b6cb0; font-size: 0.85rem;">
+                                            📎 {{ req.related_document.document_type.name }}
+                                        </a>
+                                    {% else %}
+                                        <span style="color: #a0aec0;">—</span>
+                                    {% endif %}
+                                </td>
+                                {% if request.user.role == 'SURVEYOR' or request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                    <td>
+                                        {% if req.status == 'VERIFIED' and request.user.role != 'ADMIN' and not request.user.is_superuser %}
+                                            <span style="font-size: 0.75rem; color: #718096; font-style: italic;">Verified by Admin</span>
+                                        {% else %}
+                                            <form method="post" action="/claims/{{ claim.id }}/lor/{{ req.id }}/update-status/" style="display: flex; gap: 0.35rem;">
+                                                {% csrf_token %}
+                                                <select name="status" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: auto;">
+                                                    <option value="PENDING" {% if req.status == 'PENDING' %}selected{% endif %}>Pending</option>
+                                                    <option value="PARTIALLY_RECEIVED" {% if req.status == 'PARTIALLY_RECEIVED' %}selected{% endif %}>Partially</option>
+                                                    <option value="RECEIVED" {% if req.status == 'RECEIVED' %}selected{% endif %}>Received</option>
+                                                    {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                                        <option value="VERIFIED" {% if req.status == 'VERIFIED' %}selected{% endif %}>Verified</option>
+                                                    {% endif %}
+                                                    <option value="REJECTED" {% if req.status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                                                </select>
+                                                <button type="submit" class="btn btn-outline" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Update</button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: #718096; padding: 2rem;">No LOR requirements registered.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Add Requirement Form (Surveyor Only) -->
+        {% if request.user.role == 'SURVEYOR' and lor_form %}
+            <div class="form-card" style="max-width: 100%;">
+                <h4 style="font-size: 1.05rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    + Add New Requirement to LOR
+                </h4>
+                <form method="post" action="/claims/{{ claim.id }}/lor/add/">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Requirement Description <span style="color: #e53e3e;">*</span></label>
+                            {{ lor_form.description }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Requested From</label>
+                            {{ lor_form.requested_from }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Requested Date</label>
+                            {{ lor_form.requested_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date</label>
+                            {{ lor_form.due_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Initial Status</label>
+                            {{ lor_form.status }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Link Existing Claim Document (Optional)</label>
+                            {{ lor_form.related_document }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Remarks</label>
+                            {{ lor_form.remarks }}
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem;">
+                            Add Requirement
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- TAB 7: DOCUMENTS -->
+    {% if active_tab == 'documents' %}
+        <div class="card-table-wrapper">
+            <div class="card-table-header">
+                <div class="card-table-title">Claim Documents &amp; Records</div>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Document Type</th>
+                            <th>Ref Number</th>
+                            <th>Doc Date</th>
+                            <th>Uploaded By</th>
+                            <th>Uploaded At</th>
+                            <th>Verification</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in claim_documents %}
+                            <tr>
+                                <td>
+                                    <strong>{{ doc.document_type.name }}</strong>
+                                    {% if doc.description %}<div style="font-size: 0.775rem; color: #718096;">{{ doc.description }}</div>{% endif %}
+                                </td>
+                                <td>{{ doc.document_number|default:"—" }}</td>
+                                <td>{{ doc.document_date|date:"d M Y"|default:"—" }}</td>
+                                <td>{{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}</td>
+                                <td>{{ doc.uploaded_at|date:"d M Y, H:i" }}</td>
+                                <td>
+                                    {% if doc.verified %}
+                                        <span class="badge badge-success">✓ Verified</span>
+                                        <div style="font-size: 0.725rem; color: #718096;">by {{ doc.verified_by.get_full_name|default:doc.verified_by.username }}</div>
+                                    {% else %}
+                                        <span class="badge" style="background-color: #fef08a; color: #854d0e;">Pending</span>
+                                        {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                            <form method="post" action="/claims/{{ claim.id }}/documents/{{ doc.id }}/verify/" style="display: inline-block; margin-left: 0.35rem;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-primary" style="padding: 0.15rem 0.5rem; font-size: 0.725rem; cursor: pointer;" title="Mark this document as Verified">
+                                                    ✓ Verify
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'secure_media' path=doc.file.name %}" target="_blank" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.775rem;">
+                                        Download / View
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: #718096; padding: 2rem;">No documents uploaded for this claim yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- TAB 8: PHOTOS -->
+    {% if active_tab == 'photos' %}
+        <div class="form-card" style="max-width: 100%;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin-bottom: 1.25rem;">Survey Photographic Evidence</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem;">
+                {% for p in inspection_photos %}
+                    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="height: 160px; background-color: #edf2f7; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                            <img src="{% url 'secure_media' path=p.image.name %}" alt="{{ p.caption|default:'Photo' }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+                        <div style="padding: 0.85rem;">
+                            <span class="badge" style="background-color: #e0f2fe; color: #0284c7; font-size: 0.75rem;">{{ p.get_category_display }}</span>
+                            <div style="font-size: 0.875rem; font-weight: 600; color: #2d3748; margin-top: 0.4rem;">
+                                {{ p.caption|default:"Untitled Photo" }}
+                            </div>
+                            <div style="font-size: 0.75rem; color: #718096; margin-top: 0.25rem;">
+                                Taken: {{ p.created_at|date:"d M Y, H:i" }}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div style="grid-column: 1 / -1; text-align: center; color: #718096; padding: 3rem 1rem;">
+                        No survey inspection photos uploaded yet.
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- TAB 9: INVOICES -->
+    {% if active_tab == 'invoices' %}
+        <div class="card-table-wrapper">
+            <div class="card-table-header">
+                <div class="card-table-title">Repair &amp; Replacement Invoices</div>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Invoice No.</th>
+                            <th>Invoice Date</th>
+                            <th>Vendor / Supplier</th>
+                            <th>Base Amount</th>
+                            <th>Tax</th>
+                            <th>Total Amount</th>
+                            <th>Verified</th>
+                            <th>Document</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inv in invoices %}
+                            <tr>
+                                <td><strong>{{ inv.invoice_number }}</strong></td>
+                                <td>{{ inv.invoice_date|date:"d M Y" }}</td>
+                                <td>{{ inv.vendor_name }}</td>
+                                <td>Rs. {{ inv.amount|floatformat:2 }}</td>
+                                <td>Rs. {{ inv.tax_amount|floatformat:2 }}</td>
+                                <td><strong>Rs. {{ inv.total_amount|floatformat:2 }}</strong></td>
+                                <td>
+                                    {% if inv.verified %}
+                                        <span class="badge badge-success">✓ Verified</span>
+                                    {% else %}
+                                        <span class="badge" style="background-color: #fef08a; color: #854d0e;">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if inv.document %}
+                                        <a href="{% url 'secure_media' path=inv.document.name %}" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">View</a>
+                                    {% else %}
+                                        <span style="color: #a0aec0; font-size: 0.8rem;">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: #718096; padding: 2rem;">No repair/replacement invoices submitted.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- TAB 10: ASSESSMENT -->
+    {% if active_tab == 'assessment' %}
+        <div class="form-card" style="max-width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: #1a202c; margin: 0;">Financial Loss Assessment</h3>
+                <div style="font-size: 0.85rem; color: #718096;">
+                    {% if assessment %}Created: {{ assessment.created_at|date:"d M Y" }}{% endif %}
+                </div>
+            </div>
+
+            <!-- Read-Only Financial Summary Panel -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Gross Assessed Loss</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #2d3748; margin-top: 0.25rem;">
+                        Rs. {{ assessment.gross_assessed_loss|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Less Salvage</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #d97706; margin-top: 0.25rem;">
+                        - Rs. {{ assessment.salvage_amount|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Less Underinsurance ({{ assessment.underinsurance_percentage|default:"0" }}%)</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #c53030; margin-top: 0.25rem;">
+                        - Rs. {{ assessment.underinsurance_amount|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Adjusted Loss</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #2b6cb0; margin-top: 0.25rem;">
+                        Rs. {{ assessment.adjusted_loss|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Less Depreciation</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #d97706; margin-top: 0.25rem;">
+                        - Rs. {{ assessment.depreciation_amount|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Less Policy Excess</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #d97706; margin-top: 0.25rem;">
+                        - Rs. {{ assessment.policy_excess|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title">Other Deductions</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #d97706; margin-top: 0.25rem;">
+                        - Rs. {{ assessment.other_deductions|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 1rem;">
+                    <div class="stat-title" style="color: #065f46;">Net Assessed Loss</div>
+                    <div style="font-size: 1.35rem; font-weight: 700; color: #047857; margin-top: 0.25rem;">
+                        Rs. {{ assessment.net_assessed_loss|floatformat:2|default:"0.00" }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Surveyor: Editable Financial Parameters Form -->
+            {% if request.user.role == 'SURVEYOR' and assessment_financial_form %}
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 2rem;">
+                    <h4 style="font-size: 1rem; font-weight: 700; color: #2d3748; margin-bottom: 1rem;">
+                        Update Financial Parameters &amp; Deductions
+                    </h4>
+                    <form method="post" action="/claims/{{ claim.id }}/assessment/save/">
+                        {% csrf_token %}
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Salvage Amount (Rs.)</label>
+                                {{ assessment_financial_form.salvage_amount }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Underinsurance (%)</label>
+                                {{ assessment_financial_form.underinsurance_percentage }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Depreciation (Rs.)</label>
+                                {{ assessment_financial_form.depreciation_amount }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Policy Excess (Rs.)</label>
+                                {{ assessment_financial_form.policy_excess }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Deductions (Rs.)</label>
+                                {{ assessment_financial_form.other_deductions }}
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label">Assessment Remarks</label>
+                                {{ assessment_financial_form.assessment_remarks }}
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem;">
+                                Recalculate &amp; Save Assessment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            {% endif %}
+
+            <!-- Assessment Items Breakdown Table -->
+            <h4 style="font-size: 1.05rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">Itemized Assessment Lines</h4>
+            <div class="table-responsive" style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 1.5rem;">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Qty</th>
+                            <th>Rate (Rs.)</th>
+                            <th>Claimed (Rs.)</th>
+                            <th>Assessed Amount (Rs.)</th>
+                            <th>Remarks</th>
+                            {% if request.user.role == 'SURVEYOR' %}
+                                <th>Action</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for itm in assessment_items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ itm.description }}</strong>
+                                    {% if itm.specification %}<div style="font-size: 0.775rem; color: #718096;">{{ itm.specification }}</div>{% endif %}
+                                </td>
+                                <td>{{ itm.category|default:"General" }}</td>
+                                <td>{{ itm.quantity }}</td>
+                                <td>{{ itm.rate|floatformat:2 }}</td>
+                                <td>{{ itm.claimed_amount|floatformat:2 }}</td>
+                                <td><strong>Rs. {{ itm.assessed_amount|floatformat:2 }}</strong></td>
+                                <td><span style="font-size: 0.85rem; color: #4a5568;">{{ itm.remarks|default:"—" }}</span></td>
+                                {% if request.user.role == 'SURVEYOR' %}
+                                    <td>
+                                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                                            <button type="button" class="btn btn-outline" style="color: #2b6cb0; border-color: #bee3f8; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="toggleEditItem('{{ itm.id }}')">
+                                                ✏️ Edit
+                                            </button>
+                                            <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/delete/" style="margin: 0;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline" style="color: #e53e3e; border-color: #feb2b2; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="return confirm('Delete this line item?');">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                            {% if request.user.role == 'SURVEYOR' %}
+                                <tr id="edit-item-row-{{ itm.id }}" style="display: none; background-color: #f7fafc; border-top: 1px dashed #cbd5e0;">
+                                    <td colspan="8" style="padding: 1rem 1.25rem;">
+                                        <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/edit/">
+                                            {% csrf_token %}
+                                            <div style="font-weight: 700; font-size: 0.85rem; color: #2b6cb0; margin-bottom: 0.75rem;">
+                                                ✏️ Edit Line Item: {{ itm.description }}
+                                            </div>
+                                            <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                                                <div class="form-group" style="grid-column: 1 / -1;">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Item Description <span style="color: #e53e3e;">*</span></label>
+                                                    <input type="text" name="description" class="form-control" value="{{ itm.description }}" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Item Code</label>
+                                                    <input type="text" name="item_code" class="form-control" value="{{ itm.item_code|default:'' }}" placeholder="Optional">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Category</label>
+                                                    <input type="text" name="category" class="form-control" value="{{ itm.category|default:'' }}">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Specification / Model</label>
+                                                    <input type="text" name="specification" class="form-control" value="{{ itm.specification|default:'' }}">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Quantity <span style="color: #e53e3e;">*</span></label>
+                                                    <input type="number" step="0.01" name="quantity" id="edit_qty_{{ itm.id }}" class="form-control" value="{{ itm.quantity }}" required oninput="calcEditTotal('{{ itm.id }}')">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Rate (Rs.) <span style="color: #e53e3e;">*</span></label>
+                                                    <input type="number" step="0.01" name="rate" id="edit_rate_{{ itm.id }}" class="form-control" value="{{ itm.rate }}" required oninput="calcEditTotal('{{ itm.id }}')">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Claimed Amount (Rs.)</label>
+                                                    <input type="number" step="0.01" name="claimed_amount" class="form-control" value="{{ itm.claimed_amount|default:'' }}">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Computed Assessed (Rs.)</label>
+                                                    <div id="edit_preview_{{ itm.id }}" style="font-size: 1rem; font-weight: 700; color: #047857; padding-top: 0.4rem;">
+                                                        Rs. {{ itm.assessed_amount|floatformat:2 }}
+                                                    </div>
+                                                </div>
+                                                <div class="form-group" style="grid-column: 1 / -1;">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Remarks / Basis</label>
+                                                    <input type="text" name="remarks" class="form-control" value="{{ itm.remarks|default:'' }}">
+                                                </div>
+                                            </div>
+                                            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                                                <button type="submit" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.35rem 0.9rem;">
+                                                    Save Changes
+                                                </button>
+                                                <button type="button" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;" onclick="toggleEditItem('{{ itm.id }}')">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="{% if request.user.role == 'SURVEYOR' %}8{% else %}7{% endif %}" style="text-align: center; color: #718096; padding: 1.5rem;">
+                                    No itemized line items entered yet.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Surveyor: Add Item Form with Client-side Auto-computed Amount Preview -->
+            {% if request.user.role == 'SURVEYOR' and assessment_item_form %}
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
+                    <h5 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">+ Add Assessment Item</h5>
+                    <form method="post" action="/claims/{{ claim.id }}/assessment/item/add/">
+                        {% csrf_token %}
+                        <div class="form-grid">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label">Item Description <span style="color: #e53e3e;">*</span></label>
+                                {{ assessment_item_form.description }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                {{ assessment_item_form.category }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Specification / Model</label>
+                                {{ assessment_item_form.specification }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Quantity <span style="color: #e53e3e;">*</span></label>
+                                {{ assessment_item_form.quantity }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Rate (Rs.) <span style="color: #e53e3e;">*</span></label>
+                                {{ assessment_item_form.rate }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Claimed Amount (Rs.)</label>
+                                {{ assessment_item_form.claimed_amount }}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Computed Preview (Qty &times; Rate)</label>
+                                <div id="itemAmountPreview" style="font-size: 1.15rem; font-weight: 700; color: #047857; padding-top: 0.5rem;">
+                                    Rs. 0.00
+                                </div>
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label">Line-Item Remarks / Basis</label>
+                                {{ assessment_item_form.remarks }}
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem;">
+                                Add Item to Assessment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <script>
+                    function toggleEditItem(itemId) {
+                        const row = document.getElementById('edit-item-row-' + itemId);
+                        if (!row) return;
+                        row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+                    }
+
+                    function calcEditTotal(itemId) {
+                        const qEl = document.getElementById('edit_qty_' + itemId);
+                        const rEl = document.getElementById('edit_rate_' + itemId);
+                        const pEl = document.getElementById('edit_preview_' + itemId);
+                        const q = parseFloat(qEl ? qEl.value : 0) || 0;
+                        const r = parseFloat(rEl ? rEl.value : 0) || 0;
+                        if (pEl) {
+                            pEl.textContent = 'Rs. ' + (q * r).toFixed(2);
+                        }
+                    }
+
+                    (function() {
+                        const qtyInput = document.getElementById('id_item_quantity');
+                        const rateInput = document.getElementById('id_item_rate');
+                        const previewEl = document.getElementById('itemAmountPreview');
+
+                        function updatePreview() {
+                            const q = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
+                            const r = parseFloat(rateInput ? rateInput.value : 0) || 0;
+                            const total = (q * r).toFixed(2);
+                            if (previewEl) previewEl.textContent = 'Rs. ' + total;
+                        }
+
+                        if (qtyInput) qtyInput.addEventListener('input', updatePreview);
+                        if (rateInput) rateInput.addEventListener('input', updatePreview);
+                    })();
+                </script>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 11: ISR (Initial Survey Report) -->
+    {% if active_tab == 'isr' %}
+        <div class="form-card" style="max-width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h3 style="font-size: 1.2rem; font-weight: 700; color: #1a202c; margin: 0;">
+                        Initial Survey Report (ISR) {% if isr_report %}#{{ isr_report.report_number }}{% endif %}
+                    </h3>
+                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.2rem;">
+                        Status: <strong>{{ isr_report.get_status_display|default:"Not Yet Drafted" }}</strong>
+                    </div>
+                </div>
+
+                <!-- Action Controls Strip -->
+                {% if isr_report %}
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <a href="/claims/{{ claim.id }}/report/isr/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                            👁️ Preview PDF
+                        </a>
+                        <form method="post" action="/claims/{{ claim.id }}/report/isr/generate-pdf/" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                                📄 Generate PDF Document
+                            </button>
+                        </form>
+                        {% if request.user.role == 'SURVEYOR' and isr_report.status == 'DRAFT' %}
+                            <form method="post" action="/claims/{{ claim.id }}/report/isr/submit/" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
+                                    🚀 Submit Report
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if request.user.role == 'SURVEYOR' and isr_form %}
+                <form method="post" action="/claims/{{ claim.id }}/report/isr/save/">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        {% if not claim.has_completed_lor_and_assessment %}
+                            <div class="form-group" style="grid-column: 1 / -1; background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem;">
+                                <label class="form-label" style="color: #c05621; font-weight: 700; margin-bottom: 0.35rem;">
+                                    ⚠️ Reason for skipping LOR / Assessment <span style="color: #e53e3e;">*</span>
+                                </label>
+                                <textarea name="skip_justification" class="form-control" rows="2" required placeholder="Enter mandatory justification for proceeding to ISR before both LOR and Assessment stages are completed..."></textarea>
+                                <div style="font-size: 0.8rem; color: #718096; margin-top: 0.35rem;">
+                                    This claim must pass through both <em>LOR Issued</em> and <em>Assessment In Progress</em> to clear this requirement. A justification is required to prepare an ISR directly.
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="form-group">
+                            <label class="form-label">Report Number</label>
+                            {{ isr_form.report_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Report Date</label>
+                            {{ isr_form.report_date }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Introduction</label>
+                            {{ isr_form.introduction }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Occurrence Details</label>
+                            {{ isr_form.occurrence_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Survey Details</label>
+                            {{ isr_form.survey_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Extent of Damage</label>
+                            {{ isr_form.extent_of_damage }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Cause of Loss</label>
+                            {{ isr_form.cause_of_loss }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Initial Assessment</label>
+                            {{ isr_form.initial_assessment }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Liability</label>
+                            {{ isr_form.policy_liability }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Documents Received</label>
+                            {{ isr_form.documents_received }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Documents Pending</label>
+                            {{ isr_form.documents_pending }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Recommendation</label>
+                            {{ isr_form.recommendation }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Remarks</label>
+                            {{ isr_form.remarks }}
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+                        <button type="submit" class="btn btn-primary">Save Draft</button>
+                    </div>
+                </form>
+            {% else %}
+                {% if isr_report %}
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Occurrence:</strong> {{ isr_report.occurrence_details }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Damage:</strong> {{ isr_report.extent_of_damage }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Cause:</strong> {{ isr_report.cause_of_loss }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Initial Assessment:</strong> {{ isr_report.initial_assessment }}</p>
+                    </div>
+                {% else %}
+                    <div style="text-align: center; color: #718096; padding: 3rem 1rem;">No ISR report prepared yet.</div>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 12: FSR (Final Survey Report) -->
+    {% if active_tab == 'fsr' %}
+        <div class="form-card" style="max-width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h3 style="font-size: 1.2rem; font-weight: 700; color: #1a202c; margin: 0;">
+                        Final Survey Report (FSR) {% if fsr_report %}#{{ fsr_report.report_number }}{% endif %}
+                    </h3>
+                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.2rem;">
+                        Status: <strong>{{ fsr_report.get_status_display|default:"Not Yet Drafted" }}</strong>
+                    </div>
+                </div>
+
+                <!-- Action Controls Strip -->
+                {% if fsr_report %}
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <a href="/claims/{{ claim.id }}/report/fsr/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                            👁️ Preview PDF
+                        </a>
+                        <form method="post" action="/claims/{{ claim.id }}/report/fsr/generate-pdf/" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
+                                📄 Generate PDF Document
+                            </button>
+                        </form>
+                        {% if request.user.role == 'SURVEYOR' and fsr_report.status == 'DRAFT' %}
+                            <form method="post" action="/claims/{{ claim.id }}/report/fsr/submit/" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
+                                    🚀 Submit Report
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if request.user.role == 'SURVEYOR' and fsr_form %}
+                <form method="post" action="/claims/{{ claim.id }}/report/fsr/save/">
+                    {% csrf_token %}
+                    <div class="form-grid">
+                        {% if not claim.has_completed_lor_and_assessment %}
+                            <div class="form-group" style="grid-column: 1 / -1; background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem;">
+                                <label class="form-label" style="color: #c05621; font-weight: 700; margin-bottom: 0.35rem;">
+                                    ⚠️ Reason for skipping LOR / Assessment <span style="color: #e53e3e;">*</span>
+                                </label>
+                                <textarea name="skip_justification" class="form-control" rows="2" required placeholder="Enter mandatory justification for proceeding to FSR before both LOR and Assessment stages are completed..."></textarea>
+                                <div style="font-size: 0.8rem; color: #718096; margin-top: 0.35rem;">
+                                    This claim must pass through both <em>LOR Issued</em> and <em>Assessment In Progress</em> to clear this requirement. A justification is required to prepare an FSR directly.
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="form-group">
+                            <label class="form-label">Report Number</label>
+                            {{ fsr_form.report_number }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Report Date</label>
+                            {{ fsr_form.report_date }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Value at Risk (Rs.)</label>
+                            {{ fsr_form.value_at_risk }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sum Insured (Rs.)</label>
+                            {{ fsr_form.sum_insured }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Underinsurance (%)</label>
+                            {{ fsr_form.underinsurance_percentage }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Salvage Amount (Rs.)</label>
+                            {{ fsr_form.salvage_amount }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Introduction</label>
+                            {{ fsr_form.introduction }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Occurrence Details</label>
+                            {{ fsr_form.occurrence_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Survey Details</label>
+                            {{ fsr_form.survey_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Extent of Loss</label>
+                            {{ fsr_form.extent_of_loss }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Cause of Loss</label>
+                            {{ fsr_form.cause_of_loss }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Adequacy of Sum Insured</label>
+                            {{ fsr_form.adequacy_of_sum_insured }}
+                            <div style="font-size: 0.8rem; color: #718096; margin-top: 0.25rem;">
+                                Explanation of Value-at-Risk / Under-insurance assessment (e.g. balance sheet / P&amp;L year used, formula and result).
+                            </div>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Insured Claim Description</label>
+                            {{ fsr_form.insured_claim_description }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Admissibility</label>
+                            {{ fsr_form.admissibility }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Coverage</label>
+                            {{ fsr_form.policy_coverage }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Policy Exclusions</label>
+                            {{ fsr_form.policy_exclusions }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Breach of Warranty</label>
+                            <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                {{ fsr_form.breach_of_warranty }} <span>Warranty Breached</span>
+                            </div>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Warranty Details</label>
+                            {{ fsr_form.warranty_details }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Final Surveyor Opinion</label>
+                            {{ fsr_form.final_opinion }}
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Remarks</label>
+                            {{ fsr_form.remarks }}
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+                        <button type="submit" class="btn btn-primary">Save Draft</button>
+                    </div>
+                </form>
+            {% else %}
+                {% if fsr_report %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 1.25rem;">
+                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                            <div class="stat-title">Value at Risk</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #2d3748; margin-top: 0.2rem;">Rs. {{ fsr_report.value_at_risk|floatformat:2 }}</div>
+                        </div>
+                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                            <div class="stat-title">Sum Insured</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #2d3748; margin-top: 0.2rem;">Rs. {{ fsr_report.sum_insured|floatformat:2 }}</div>
+                        </div>
+                        <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 1rem;">
+                            <div class="stat-title" style="color: #065f46;">Net Assessed Loss</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: #047857; margin-top: 0.2rem;">
+                                Rs. {{ fsr_report.net_assessed_loss|floatformat:2|default:"0.00" }}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Admissibility:</strong> {{ fsr_report.admissibility }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Policy Coverage:</strong> {{ fsr_report.policy_coverage }}</p>
+                        <p style="color: #4a5568; font-size: 0.9rem; line-height: 1.6;"><strong>Final Opinion:</strong> {{ fsr_report.final_opinion }}</p>
+                        <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 0.75rem; font-size: 0.825rem; color: #92400e; font-style: italic;">
+                            <strong>Disclaimer Note:</strong> {{ fsr_report.DISCLAIMER_NOTE }}
+                        </div>
+                    </div>
+                {% else %}
+                    <div style="text-align: center; color: #718096; padding: 3rem 1rem;">No FSR report prepared yet.</div>
+                {% endif %}
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- TAB 13: ACTIVITY (Unified Audit & Status History Timeline) -->
+    {% if active_tab == 'activity' %}
+        <div class="form-card" style="max-width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: #1a202c; margin: 0;">Claim Activity &amp; Audit Trail</h3>
+                <span class="badge badge-success">{{ timeline_items|length }} Events Logged</span>
+            </div>
+
+            <div class="activity-timeline">
+                {% for item in timeline_items %}
+                    <div class="timeline-event">
+                        <div class="timeline-marker {{ item.badge_color }}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-title">{{ item.title }}</span>
+                                <span class="timeline-time">{{ item.timestamp|date:"d M Y, H:i:s" }}</span>
+                            </div>
+                            <div class="timeline-actor">By: <strong>{{ item.actor }}</strong></div>
+                            <div class="timeline-desc">{{ item.description }}</div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div style="text-align: center; color: #718096; padding: 2.5rem 1rem;">
+                        No activity or audit records recorded for this claim.
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+</div>
+
+{% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+<!-- Approve & Close Claim Modal -->
+<div id="modal-approve-close"
+     style="display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:2rem; width:100%; max-width:480px; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+        <h3 style="margin:0 0 0.4rem; font-size:1.15rem; font-weight:700; color:#1a202c;">✅ Approve &amp; Close Claim</h3>
+        <p style="font-size:0.875rem; color:#4a5568; margin:0 0 1.25rem; line-height:1.55;">
+            This will mark the latest submitted report as <strong>Final</strong> and transition the claim to
+            <strong>Closed</strong>. This action cannot be undone.
+        </p>
+        <form method="post" action="/claims/{{ claim.id }}/approve-and-close/" id="form-approve-close">
+            {% csrf_token %}
+            <div style="margin-bottom:1rem;">
+                <label for="id_approve_remarks" style="display:block; font-size:0.875rem; font-weight:600; color:#374151; margin-bottom:0.35rem;">
+                    Approval Remarks <span style="color:#e53e3e;">*</span>
+                </label>
+                <textarea id="id_approve_remarks"
+                          name="remarks"
+                          rows="3"
+                          required
+                          placeholder="Enter approval decision / closing remarks (required)…"
+                          style="width:100%; border:1px solid #cbd5e0; border-radius:6px; padding:0.5rem 0.75rem; font-size:0.875rem; resize:vertical; box-sizing:border-box;"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.25rem;">
+                <button type="button"
+                        onclick="document.getElementById('modal-approve-close').style.display='none'"
+                        style="background:#f7fafc; border:1px solid #e2e8f0; color:#4a5568; padding:0.45rem 1rem; border-radius:6px; cursor:pointer; font-size:0.875rem;">
+                    Cancel
+                </button>
+                <button type="submit"
+                        id="btn-approve-close-submit"
+                        style="background:linear-gradient(135deg,#065f46,#047857); color:#fff; border:none; padding:0.45rem 1.25rem; border-radius:6px; cursor:pointer; font-size:0.875rem; font-weight:600;">
+                    Confirm &amp; Close
+                </button>
+            </div>
+        </form>
+        <button onclick="document.getElementById('modal-approve-close').style.display='none'"
+                style="position:absolute; top:0.9rem; right:1rem; background:none; border:none; font-size:1.3rem; cursor:pointer; color:#718096;">&#x2715;</button>
+    </div>
+</div>
+<script>
+/* Close modal if user clicks the dark backdrop */
+document.getElementById('modal-approve-close').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+});
+</script>
+{% endif %}
+
+{% endblock content %}

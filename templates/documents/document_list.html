@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}Claim Documents - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Claim Documents Repository</h1>
+        <p class="page-subtitle">Uploaded evidence, policies, reports, and verification records</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Claim No.</th>
+                    <th>Document Type</th>
+                    <th>Document Number</th>
+                    <th>Uploaded By</th>
+                    <th>Uploaded Date</th>
+                    <th>Verification</th>
+                    <th style="text-align: right;">File</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>
+                        <a href="/claims/{{ doc.claim.id }}/" style="color: #2b6cb0; font-weight: 700; text-decoration: none;">
+                            {{ doc.claim.claim_number }}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #edf2f7; color: #2d3748;">{{ doc.document_type.name }}</span>
+                    </td>
+                    <td>{{ doc.document_number|default:"-" }}</td>
+                    <td>{{ doc.uploaded_by.username }}</td>
+                    <td style="font-size: 0.825rem; color: #718096;">{{ doc.uploaded_at|date:"d M Y, H:i" }}</td>
+                    <td>
+                        {% if doc.verified %}
+                            <span class="status-pill pill-submitted">Verified</span>
+                        {% else %}
+                            <span class="status-pill pill-query">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if doc.file %}
+                            <a href="{% url 'secure_media' path=doc.file.name %}" target="_blank" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">View File &rarr;</a>
+                        {% else %}
+                            <span style="color: #a0aec0;">No File</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #a0aec0; padding: 2rem;">No documents uploaded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

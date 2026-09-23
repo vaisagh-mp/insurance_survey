@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <a href="/policies/" style="font-size: 0.85rem; color: #3182ce; text-decoration: none;">&larr; Back to Policies</a>
+        <h1 class="page-title" style="margin-top: 0.5rem;">{{ title }}</h1>
+    </div>
+</div>
+
+<div class="form-card">
+    <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">Underwriting Insurer *</label>
+                {{ form.insurer }}
+                {% if form.insurer.errors %}<div class="form-errors">{{ form.insurer.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Policy Number *</label>
+                {{ form.policy_number }}
+                {% if form.policy_number.errors %}<div class="form-errors">{{ form.policy_number.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Policy Type *</label>
+                {{ form.policy_type }}
+                {% if form.policy_type.errors %}<div class="form-errors">{{ form.policy_type.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Sum Insured (INR) *</label>
+                {{ form.sum_insured }}
+                {% if form.sum_insured.errors %}<div class="form-errors">{{ form.sum_insured.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Deductible / Excess (INR)</label>
+                {{ form.excess }}
+                {% if form.excess.errors %}<div class="form-errors">{{ form.excess.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Commodity / Property</label>
+                {{ form.commodity }}
+                {% if form.commodity.errors %}<div class="form-errors">{{ form.commodity.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Policy Start Date &amp; Time *</label>
+                {{ form.start_datetime }}
+                {% if form.start_datetime.errors %}<div class="form-errors">{{ form.start_datetime.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Policy Expiry Date &amp; Time *</label>
+                {{ form.end_datetime }}
+                {% if form.end_datetime.errors %}<div class="form-errors">{{ form.end_datetime.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Subject Matter of Insurance *</label>
+                {{ form.subject_matter }}
+                {% if form.subject_matter.errors %}<div class="form-errors">{{ form.subject_matter.errors }}</div>{% endif %}
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Underwriting Remarks</label>
+                {{ form.remarks }}
+                {% if form.remarks.errors %}<div class="form-errors">{{ form.remarks.errors }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary">Save Policy</button>
+            <a href="/policies/" class="btn btn-outline">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock content %}

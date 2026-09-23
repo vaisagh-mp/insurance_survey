@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Master Data: Document Types - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Master Data: Document Types</h1>
+        <p class="page-subtitle">Standard policy, invoice, evidence, and report classifications</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in types %}
+                <tr>
+                    <td><code>{{ t.code }}</code></td>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>
+                        {% if t.is_active %}
+                            <span class="status-pill pill-submitted">Active</span>
+                        {% else %}
+                            <span class="status-pill pill-closed">Inactive</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

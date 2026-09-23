@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Final Survey Report - {{ report.report_number }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 14mm 14mm 16mm 14mm;
+
+            @top-right {
+                content: "Continuation sheet";
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 8pt;
+                color: #222;
+                vertical-align: bottom;
+                padding-bottom: 1.5mm;
+            }
+
+            @top-left {
+                content: "Page " counter(page);
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 8pt;
+                color: #222;
+                vertical-align: bottom;
+                padding-bottom: 1.5mm;
+            }
+        }
+
+        @page :first {
+            margin: 10mm 14mm 16mm 14mm;
+
+            @top-right {
+                content: none;
+            }
+
+            @top-left {
+                content: none;
+            }
+
+            @bottom-center {
+                content: "{{ company_address }}";
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 7.2pt;
+                color: #333;
+                border-top: 0.5px solid #aaa;
+                padding-top: 1.5mm;
+                width: 100%;
+            }
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.35;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header-top {
+            width: 100%;
+            margin-bottom: 4px;
+        }
+
+        .header-top table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .header-top td {
+            vertical-align: top;
+            padding: 0;
+        }
+
+        .logo-cell {
+            width: 50%;
+        }
+
+        .logo-img {
+            max-height: 48px;
+            max-width: 220px;
+            object-fit: contain;
+        }
+
+        .right-cell {
+            width: 50%;
+            text-align: right;
+            position: relative;
+        }
+
+        .swoosh-img {
+            height: 36px;
+            width: auto;
+            display: inline-block;
+            margin-bottom: 2px;
+        }
+
+        .contact-info {
+            font-size: 8pt;
+            color: #111;
+            line-height: 1.3;
+            text-align: right;
+        }
+
+        .meta-strip {
+            width: 100%;
+            margin-top: 4px;
+            margin-bottom: 6px;
+            border-collapse: collapse;
+        }
+
+        .meta-strip td {
+            font-size: 8.5pt;
+            font-weight: bold;
+            padding: 2px 0;
+        }
+
+        .report-header-meta {
+            margin-top: 8px;
+            margin-bottom: 10px;
+            font-size: 8.5pt;
+            color: #000;
+            line-height: 1.35;
+        }
+
+        .report-header-meta .corporate-license {
+            margin-bottom: 8px;
+        }
+
+        .report-header-meta .claim-ref-date {
+            margin-bottom: 10px;
+        }
+
+        .report-header-meta .insurer-address-block {
+            line-height: 1.35;
+        }
+
+        .doc-title {
+            text-align: center;
+            font-size: 11.5pt;
+            font-weight: bold;
+            text-decoration: underline;
+            letter-spacing: 0.4px;
+            margin-top: 4px;
+            margin-bottom: 3px;
+        }
+
+        .doc-disclaimer {
+            text-align: center;
+            font-size: 7.5pt;
+            font-style: italic;
+            color: #222;
+            line-height: 1.25;
+            margin-bottom: 8px;
+            padding: 0 10px;
+        }
+
+        table.soteria-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+        }
+
+        table.soteria-table tr {
+            page-break-inside: avoid;
+        }
+
+        table.soteria-table td {
+            border: 1px solid #000;
+            padding: 4px 6px;
+            vertical-align: top;
+            font-size: 8.5pt;
+            line-height: 1.35;
+        }
+
+        td.col-label {
+            width: 38%;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #000;
+        }
+
+        td.col-value {
+            width: 62%;
+            color: #000;
+        }
+
+        table.financial-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 4px 0;
+        }
+
+        table.financial-table td,
+        table.financial-table th {
+            border: 1px solid #666;
+            padding: 3px 5px;
+            font-size: 8pt;
+        }
+
+        table.financial-table th {
+            background-color: #edf2f7;
+            font-weight: bold;
+        }
+
+        .signoff-section {
+            page-break-inside: avoid;
+            margin-top: 14px;
+            font-size: 8.5pt;
+        }
+
+        .signoff-section p {
+            margin: 0 0 4px 0;
+        }
+
+        .stamp-sig-container {
+            margin: 8px 0 6px 0;
+        }
+
+        .sig-img {
+            max-height: 46px;
+            vertical-align: middle;
+            margin-right: 18px;
+        }
+
+        .stamp-img {
+            max-height: 64px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header Section (Page 1) -->
+    <div class="header-top">
+        <table>
+            <tr>
+                <td class="logo-cell">
+                    {% if soteria_logo %}
+                    <img src="{{ soteria_logo }}" class="logo-img" alt="SOTERIA">
+                    {% else %}
+                    <div style="font-size: 16pt; font-weight: bold; color: #1e3a8a;">SOTERIA</div>
+                    <div style="font-size: 7pt; font-weight: bold;">INSURANCE SURVEYORS &amp; LOSS ASSESSORS PVT LTD
+                    </div>
+                    {% endif %}
+                </td>
+                <td class="right-cell">
+                    {% if soteria_swoosh %}
+                    <div><img src="{{ soteria_swoosh }}" class="swoosh-img" alt="Banner Graphic"></div>
+                    {% endif %}
+                    <div class="contact-info">
+                        Email: {{ company_email }}<br>
+                        Website: {{ company_website }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Corporate Survey Licence No., Claim Ref, Date, and Insurer Address Block -->
+    <div class="report-header-meta">
+        <div class="corporate-license">
+            <strong>Corporate Survey Licence No.</strong> {{ corporate_survey_license|default:"SLA 200146 EXP. DATE 15-05-2027" }}
+        </div>
+        <div class="claim-ref-date">
+            <div><strong>Our Claim No: {{ report.report_number }}</strong></div>
+            <div>Date: {{ report.report_date|date:"d-m-Y" }}</div>
+        </div>
+        <div class="insurer-address-block">
+            <div>{{ claim.insurer.company_name }}</div>
+            {% if claim.insurer.branch_name and claim.insurer.branch_name not in claim.insurer.address %}
+            <div>{{ claim.insurer.branch_name }}</div>
+            {% endif %}
+            {% if claim.insurer.address %}
+            <div>{{ claim.insurer.address|linebreaksbr }}</div>
+            {% endif %}
+            {% if claim.insurer.city or claim.insurer.pincode %}
+            {% if not claim.insurer.address or claim.insurer.city not in claim.insurer.address %}
+            <div>{{ claim.insurer.city }}{% if claim.insurer.city and claim.insurer.pincode %}-{% endif %}{{ claim.insurer.pincode }}.</div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Title & Disclaimer -->
+    <div class="doc-title">FINAL SURVEY REPORT</div>
+    <div class="doc-disclaimer">
+        Issued without prejudice and does not necessarily mean that the loss is admissible which depends upon the terms,
+        conditions of the policy of Insurance contract.
+    </div>
+
+    <!-- Main Two-Column Boxed Table -->
+    <table class="soteria-table">
+        <tbody>
+            <tr>
+                <td class="col-label">CLAIM NUMBER &amp; SURVEY TYPE</td>
+                <td class="col-value">
+                    <strong>{{ claim.claim_number }}</strong> ({{ claim.get_survey_type_display }})
+                </td>
+            </tr>
+            <tr>
+                <td class="col-label">INSURER</td>
+                <td class="col-value">{{ claim.policy.insurer.company_name }}</td>
+            </tr>
+            <tr>
+                <td class="col-label">NAME AND ADDRESS OF INSURED</td>
+                <td class="col-value">
+                    <strong>{{ claim.insured.name }}</strong><br>
+                    {% if claim.insured.address %}{{ claim.insured.address }}<br>{% endif %}
+                    {{ claim.insured.city }}{% if claim.insured.state %}, State: {{ claim.insured.state }}{% endif %}{% if claim.insured.pincode %}, Pincode: {{ claim.insured.pincode }}{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="col-label">POLICY SCHEDULE &amp; TYPE</td>
+                <td class="col-value">{{ report.claim.policy.policy_number }} - {{ report.claim.policy.policy_type }}
+                </td>
+            </tr>
+            <tr>
+                <td class="col-label">PERIOD OF INSURANCE</td>
+                <td class="col-value">
+                    From {{ claim.policy.start_datetime|date:"d M Y" }} to {{ claim.policy.end_datetime|date:"d M Y" }}
+                </td>
+            </tr>
+            <tr>
+                <td class="col-label">COMMODITY / PROPERTY</td>
+                <td class="col-value">{{ claim.policy.commodity }}</td>
+            </tr>
+            <tr>
+                <td class="col-label">DATE &amp; LOCATION OF LOSS</td>
+                <td class="col-value">
+                    Date of Loss: {{ claim.date_of_loss|date:"d M Y" }}<br>
+                    Loss Location: {{ claim.loss_location }}
+                </td>
+            </tr>
+            <tr>
+                <td class="col-label">DATE &amp; MODE OF INSTRUCTION</td>
+                <td class="col-value">
+                    Date: {{ claim.instruction_date|date:"d M Y"|default:"-" }}<br>
+                    Mode: {{ claim.instruction_source|default:"Intimation Letter / Email" }}
+                </td>
+            </tr>
+
+            <!-- Section 1: INTRODUCTION -->
+            <tr>
+                <td class="col-label">INTRODUCTION</td>
+                <td class="col-value">{{ report.introduction|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 2: OCCURRENCE OF INCIDENT -->
+            <tr>
+                <td class="col-label">OCCURRENCE OF INCIDENT</td>
+                <td class="col-value">{{ report.occurrence_details|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 3: SURVEY DETAILS -->
+            <tr>
+                <td class="col-label">SURVEY DETAILS</td>
+                <td class="col-value">{{ report.survey_details|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 4: EXTENT OF LOSS -->
+            <tr>
+                <td class="col-label">EXTENT OF LOSS</td>
+                <td class="col-value">{{ report.extent_of_loss|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 5: CAUSE OF LOSS -->
+            <tr>
+                <td class="col-label">CAUSE OF LOSS</td>
+                <td class="col-value">{{ report.cause_of_loss|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 6: ADEQUACY OF SUM INSURED -->
+            <tr>
+                <td class="col-label">ADEQUACY OF SUM INSURED</td>
+                <td class="col-value">
+                    Sum Insured: INR {{ report.sum_insured|floatformat:2 }}/-<br>
+                    Value at Risk (VAR): INR {{ report.value_at_risk|floatformat:2 }}/-<br>
+                    Under-Insurance Percentage: {{ report.underinsurance_percentage }}%
+                    {% if report.adequacy_of_sum_insured %}
+                    <br><br>
+                    {{ report.adequacy_of_sum_insured|linebreaksbr }}
+                    {% endif %}
+                </td>
+            </tr>
+
+            <!-- Section 7: SALVAGE -->
+            <tr>
+                <td class="col-label">SALVAGE</td>
+                <td class="col-value">
+                    Salvage Value: INR {{ report.salvage_amount|floatformat:2 }}/-<br>
+                    {{ report.salvage_description|default:"No salvage recovered or retained by insured on net loss basis."|linebreaksbr }}
+                </td>
+            </tr>
+
+            <!-- Section 8: INSURED'S CLAIM -->
+            <tr>
+                <td class="col-label">INSURED'S CLAIM</td>
+                <td class="col-value">{{ report.insured_claim_description|linebreaksbr }}</td>
+            </tr>
+
+            <!-- Section 9: ASSESSMENT OF LOSS -->
+            <tr>
+                <td class="col-label">ASSESSMENT OF LOSS</td>
+                <td class="col-value">
+                    {% if assessment_items %}
+                    <div style="font-weight: bold; margin-bottom: 3px; font-size: 8pt; color: #1e3a8a;">Itemized
+                        Assessment Lines:</div>
+                    <table class="financial-table" style="margin-bottom: 8px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%; text-align: left;">Description</th>
+                                <th style="width: 20%; text-align: right;">Amount Claimed</th>
+                                <th style="width: 20%; text-align: right;">Amount Recommended</th>
+                                <th style="width: 20%; text-align: left;">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for itm in assessment_items %}
+                            <tr>
+                                <td>
+                                    {{ itm.description }}
+                                    {% if itm.specification %}<br><small style="color: #555;">{{ itm.specification }}</small>{% endif %}
+                                </td>
+                                <td style="text-align: right;">Rs. {{ itm.claimed_amount|floatformat:2 }}</td>
+                                <td style="text-align: right; font-weight: bold;">Rs. {{ itm.assessed_amount|floatformat:2 }}</td>
+                                <td>{{ itm.remarks|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+
+                    {% if assessment %}
+                    <div style="font-weight: bold; margin-bottom: 3px; font-size: 8pt; color: #1e3a8a;">Loss Computation
+                        &amp; Deductions:</div>
+                    <table class="financial-table">
+                        <tr>
+                            <td>Gross Assessed Loss</td>
+                            <td style="text-align: right; width: 35%; font-weight: bold;">Rs. {{ assessment.gross_assessed_loss|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Less: Salvage</td>
+                            <td style="text-align: right; color: #c53030;">- Rs. {{ assessment.salvage_amount|floatformat:2 }}</td>
+                        </tr>
+                        <tr style="background-color: #f7fafc; font-weight: bold;">
+                            <td>Total</td>
+                            <td style="text-align: right;">Rs. {{ total_after_salvage|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Less: Underinsurance ({{ assessment.underinsurance_percentage }}%)</td>
+                            <td style="text-align: right; color: #c53030;">- Rs. {{ assessment.underinsurance_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% if assessment.depreciation_amount %}
+                        <tr>
+                            <td>Less: Depreciation</td>
+                            <td style="text-align: right; color: #c53030;">- Rs. {{ assessment.depreciation_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr style="background-color: #f7fafc; font-weight: bold;">
+                            <td>Adjusted Loss</td>
+                            <td style="text-align: right;">Rs. {{ assessment.adjusted_loss|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Less: Policy Excess</td>
+                            <td style="text-align: right; color: #c53030;">- Rs. {{ assessment.policy_excess|floatformat:2 }}</td>
+                        </tr>
+                        {% if assessment.other_deductions %}
+                        <tr>
+                            <td>Less: Other Deductions</td>
+                            <td style="text-align: right; color: #c53030;">- Rs. {{ assessment.other_deductions|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr style="font-weight: bold; background-color: #ebf8ff;">
+                            <td style="color: #1e3a8a;">NET ASSESSED LOSS</td>
+                            <td style="text-align: right; color: #2b6cb0; font-size: 9pt;">Rs. {{ assessment.net_assessed_loss|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+                    {% else %}
+                    Net Assessed Loss: INR {{ report.net_assessed_loss|default:"0.00" }}/-
+                    {% endif %}
+                </td>
+            </tr>
+
+            <!-- Section 10: ADMISSIBILITY -->
+            <tr>
+                <td class="col-label">ADMISSIBILITY</td>
+                <td class="col-value">
+                    {{ report.admissibility|linebreaksbr }}
+                    {% if report.policy_coverage %}
+                    <div style="margin-top: 8px;">
+                        <strong>POLICY COVERAGE:</strong><br>
+                        {{ report.policy_coverage|linebreaksbr }}
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+
+            <!-- Section 11: BREACH OF WARRANTY -->
+            <tr>
+                <td class="col-label">BREACH OF WARRANTY</td>
+                <td class="col-value">
+                    <strong>Warranty Compliance:</strong>
+                    {% if report.breach_of_warranty %}
+                    <span style="color: #c53030; font-weight: bold;">Breach of Warranty Observed</span>
+                    {% else %}
+                    <span>Warranties Complied With</span>
+                    {% endif %}
+                    {% if report.warranty_details %}<br>{{ report.warranty_details|linebreaksbr }}{% endif %}
+                    {% if report.policy_exclusions %}
+                    <div style="margin-top: 8px;">
+                        <strong>POLICY EXCLUSIONS:</strong><br>
+                        {{ report.policy_exclusions|linebreaksbr }}
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+
+            <!-- Section 12: REMARKS -->
+            <tr>
+                <td class="col-label">REMARKS</td>
+                <td class="col-value">
+                    {{ report.remarks|default:"The report is issued without prejudice and subject to the terms and conditions of the insurance policy."|linebreaksbr }}
+                </td>
+            </tr>
+
+            <!-- Section 13: FINAL OPINION -->
+            <tr>
+                <td class="col-label">FINAL OPINION</td>
+                <td class="col-value">{{ report.final_opinion|linebreaksbr }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Sign-off & Seal Block -->
+    <div class="signoff-section">
+        <p>Issued without prejudice.</p>
+        <p><strong>For, {{ company_name }}</strong></p>
+        <div class="stamp-sig-container">
+            {% if soteria_signature %}
+            <img src="{{ soteria_signature }}" class="sig-img" alt="Signature">
+            {% endif %}
+            {% if soteria_stamp %}
+            <img src="{{ soteria_stamp }}" class="stamp-img" alt="Seal">
+            {% endif %}
+        </div>
+        <div><strong>{{ signatory_name }}</strong></div>
+        <div>{{ signatory_designation }}</div>
+        <div>{{ signatory_license }}</div>
+    </div>
+
+    <!-- Document Enclosed Section (Rendered only when verified documents exist) -->
+    {% if enclosed_documents %}
+    <div style="margin-top: 14px; page-break-inside: avoid;">
+        <div
+            style="font-weight: bold; font-size: 9pt; border-bottom: 1px solid #1e3a8a; color: #1e3a8a; padding-bottom: 2px; margin-bottom: 6px;">
+            DOCUMENTS ENCLOSED
+        </div>
+        <ol style="margin: 0; padding-left: 18px; font-size: 8pt; line-height: 1.45;">
+            {% for doc in enclosed_documents %}
+            <li>
+                <strong>{{ doc.document_type.name }}</strong>{% if doc.document_number %} (Ref: {{ doc.document_number }}){% endif %}{% if doc.document_date %}, Dtd: {{ doc.document_date|date:"d.m.Y" }}{% endif %}{% if doc.description %} — {{ doc.description }}{% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+
+</body>
+
+</html>

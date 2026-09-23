@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Trail - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">System Audit &amp; Activity Log</h1>
+        <p class="page-subtitle">Chronological record of claim status transitions, assignments, and report actions</p>
+    </div>
+</div>
+
+<div class="card-table-wrapper">
+    <div class="table-responsive">
+        <table class="data-table-modern">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Target Model</th>
+                    <th>Object ID</th>
+                    <th>Description</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="font-size: 0.8rem; color: #718096; white-space: nowrap;">
+                        {{ log.timestamp|date:"d M Y, H:i:s" }}
+                    </td>
+                    <td>
+                        <strong>{{ log.user.username|default:"System" }}</strong>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #edf2f7; color: #2d3748; font-family: monospace;">{{ log.action }}</span>
+                    </td>
+                    <td>{{ log.model_name }}</td>
+                    <td><code>#{{ log.object_id }}</code></td>
+                    <td>{{ log.description }}</td>
+                    <td style="font-size: 0.8rem; color: #718096;">{{ log.ip_address|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: #a0aec0; padding: 2rem;">No audit logs recorded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock content %}

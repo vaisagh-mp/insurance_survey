@@ -1,0 +1,229 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>{% block title %}Insurance Surveyor System{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header class="site-header">
+        <nav class="navbar">
+            <div class="nav-left">
+                {% if request.user.is_authenticated %}
+                    <button type="button" id="sidebarToggle" class="sidebar-toggle-btn" aria-label="Toggle navigation menu">
+                        <span class="toggle-bar"></span>
+                        <span class="toggle-bar"></span>
+                        <span class="toggle-bar"></span>
+                    </button>
+                {% endif %}
+                <a href="/" class="brand-wrapper">
+                    <img src="{% static 'images/soteria_logo.png' %}" alt="Soteria Logo" class="brand-logo-img">
+                </a>
+            </div>
+            <ul class="nav-links">
+                <!-- Navigation links hidden as requested; preserved in DOM without removing -->
+                <li style="display: none;"><a href="/dashboard/admin/">Admin Portal</a></li>
+                <li style="display: none;"><a href="/api/docs/">API Docs</a></li>
+                <li style="display: none;"><a href="/admin/">Django Admin</a></li>
+                {% if request.user.is_authenticated %}
+                    <li class="navbar-user-info">
+                        <span style="font-size: 0.85rem; color: #4b5563;">
+                            <strong>{{ request.user.username }}</strong>
+                            <span class="badge badge-success">{{ request.user.get_role_display|default:request.user.role }}</span>
+                        </span>
+                    </li>
+                    <li><a href="/logout/" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.825rem;">Logout</a></li>
+                {% else %}
+                    <li><a href="/login/" class="btn btn-primary" style="padding: 0.35rem 0.85rem; font-size: 0.825rem; color: #ffffff;">Login</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </header>
+
+    {% block layout %}
+    <div class="admin-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="admin-sidebar">
+            <!-- User info and close button shown at top of offcanvas sidebar -->
+            <div class="sidebar-user-panel">
+                <div class="sidebar-user-panel-inner">
+                    {% if request.user.is_authenticated %}
+                        <div class="sidebar-user-details">
+                            <div class="sidebar-user-avatar">
+                                {{ request.user.username|first|upper }}
+                            </div>
+                            <div>
+                                <div class="sidebar-user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+                                <span class="badge badge-success" style="font-size:0.75rem;">{{ request.user.get_role_display|default:request.user.role }}</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="sidebar-user-details" style="font-weight:600;font-size:0.9rem;color:#475569;">
+                            Menu
+                        </div>
+                    {% endif %}
+                    <button type="button" id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu">
+                        &#x2715;
+                    </button>
+                </div>
+            </div>
+            {% if request.user.role == 'SURVEYOR' %}
+                <div>
+                    <div class="sidebar-heading">Surveyor Portal</div>
+                    <ul class="sidebar-menu">
+                        <li><a href="/dashboard/surveyor/">📊 Dashboard</a></li>
+                        <li><a href="/claims/">📁 My Assigned Claims</a></li>
+                    </ul>
+                </div>
+            {% else %}
+                <div>
+                    <div class="sidebar-heading">Core</div>
+                    <ul class="sidebar-menu">
+                        <li><a href="/dashboard/admin/">📊 Dashboard</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="sidebar-heading">Claims Management</div>
+                    <ul class="sidebar-menu">
+                        <li>
+                            <a href="/claims/">📁 All Claims</a>
+                            <ul class="sidebar-submenu">
+                                <li><a href="/claims/?status=NEW">• New</a></li>
+                                <li><a href="/claims/?filter=unassigned">• Unassigned</a></li>
+                                <li><a href="/claims/?status=ASSIGNED">• Assigned</a></li>
+                                <li><a href="/claims/?filter=in_progress">• In Progress</a></li>
+                                <li><a href="/claims/?status=REPORT_SUBMITTED">• Submitted</a></li>
+                                <li><a href="/claims/?status=CLOSED">• Closed</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="sidebar-heading">Surveyors</div>
+                    <ul class="sidebar-menu">
+                        <li><a href="/surveyors/">👥 Surveyors List</a></li>
+                        <li><a href="/surveyors/add/">➕ Add Surveyor</a></li>
+                        <li><a href="/surveyors/workload/">⏱️ Workload Monitor</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="sidebar-heading">Entities &amp; Policies</div>
+                    <ul class="sidebar-menu">
+                        <li><a href="/insurers/">🏢 Insurers</a></li>
+                        <li><a href="/insured/">🏭 Insured Parties</a></li>
+                        <li><a href="/policies/">📜 Policies</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="sidebar-heading">Operations</div>
+                    <ul class="sidebar-menu">
+                        <li><a href="/documents/">📄 Claim Documents</a></li>
+                        <li><a href="/reports/">📑 Survey Reports</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="sidebar-heading">Administration</div>
+                    <ul class="sidebar-menu">
+                        <li>
+                            <a href="/master/survey-types/">⚙️ Master Data</a>
+                            <ul class="sidebar-submenu">
+                                <li><a href="/master/survey-types/">Survey Types</a></li>
+                                <li><a href="/master/document-types/">Document Types</a></li>
+                                <li><a href="/master/claim-statuses/">Claim Statuses</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="/users/">👤 Users</a></li>
+                        <li><a href="/audit/">🛡️ Audit / Activity</a></li>
+                    </ul>
+                </div>
+            {% endif %}
+        </aside>
+
+        <!-- Backdrop for mobile sidebar drawer -->
+        <div id="sidebarBackdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
+        <!-- Main Content Area -->
+        <main class="admin-content">
+            {% if messages %}
+                <div class="alert-messages">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags|default:'info' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+    {% endblock layout %}
+
+    <footer class="site-footer">
+        <p>&copy; {% now "Y" %} Insurance Surveyor System (V1). All rights reserved.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var toggleBtn = document.getElementById('sidebarToggle');
+            var closeBtn = document.getElementById('sidebarClose');
+            var backdrop = document.getElementById('sidebarBackdrop');
+            var sidebar = document.querySelector('.admin-sidebar');
+
+            function toggleSidebar() {
+                document.body.classList.toggle('sidebar-open');
+            }
+
+            function closeSidebar() {
+                document.body.classList.remove('sidebar-open');
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleSidebar();
+                });
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeSidebar();
+                });
+            }
+
+            if (backdrop) {
+                backdrop.addEventListener('click', closeSidebar);
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeSidebar();
+                }
+            });
+
+            if (sidebar) {
+                sidebar.querySelectorAll('a').forEach(function(link) {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth < 992) {
+                            closeSidebar();
+                        }
+                    });
+                });
+            }
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
