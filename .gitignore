@@ -1,0 +1,37 @@
+# Environment variables & secrets
+.env
+.env.*
+.env.example
+*.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local SQLite databases
+*.sqlite3
+*.sqlite3-journal
+
+# Uploaded media files & static root
+media/
+staticfiles/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
