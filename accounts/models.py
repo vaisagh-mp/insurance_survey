@@ -1,5 +1,11 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+
+
+class CustomUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('role', 'ADMIN')
+        return super().create_superuser(username, email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -14,13 +20,20 @@ class User(AbstractUser):
         help_text="Designates the user role within the system."
     )
 
+    objects = CustomUserManager()
+
     @property
     def is_admin_role(self):
-        return self.role == self.Role.ADMIN
+        return self.role == self.Role.ADMIN or self.is_superuser
 
     @property
     def is_surveyor_role(self):
-        return self.role == self.Role.SURVEYOR
+        return self.role == self.Role.SURVEYOR and not self.is_superuser
+
+    def save(self, *args, **kwargs):
+        if self.is_superuser and self.role != self.Role.ADMIN:
+            self.role = self.Role.ADMIN
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"

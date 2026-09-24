@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Fee Invoices - Insurance Surveyor System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Survey Fee Invoices</h1>
+        <p class="page-subtitle">Showing {{ total_count }} total firm service fee invoices to insurers</p>
+    </div>
+</div>
+
+<!-- Quick Status Pills -->
+<div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+    <a href="/billing/" class="btn {% if not current_status %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">All</a>
+    <a href="/billing/?status=DRAFT" class="btn {% if current_status == 'DRAFT' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Draft</a>
+    <a href="/billing/?status=SENT" class="btn {% if current_status == 'SENT' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Sent</a>
+    <a href="/billing/?status=PAID" class="btn {% if current_status == 'PAID' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Paid</a>
+    <a href="/billing/?status=CANCELLED" class="btn {% if current_status == 'CANCELLED' %}btn-primary{% else %}btn-outline{% endif %}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Cancelled</a>
+</div>
+
+<!-- Form Filters -->
+<form method="get" action="/billing/" class="filter-bar" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.5rem; background: #fff; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+    <div class="filter-group">
+        <label class="filter-label" style="font-size: 0.8rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.25rem;">Status:</label>
+        <select name="status" class="form-control" style="width: auto; min-width: 140px;" onchange="this.form.submit()">
+            <option value="">-- All Statuses --</option>
+            {% for code, label in status_choices %}
+                <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label class="filter-label" style="font-size: 0.8rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.25rem;">Insurer:</label>
+        <select name="insurer" class="form-control" style="width: auto; min-width: 180px;" onchange="this.form.submit()">
+            <option value="">-- All Insurers --</option>
+            {% for ins in insurers %}
+                <option value="{{ ins.id }}" {% if current_insurer == ins.id|stringformat:"i" %}selected{% endif %}>{{ ins.company_name }} ({{ ins.branch_name }})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group" style="flex: 1; min-width: 200px;">
+        <label class="filter-label" style="font-size: 0.8rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.25rem;">Search:</label>
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Invoice #, Claim #, Insurer, Payment Ref..." class="form-control">
+    </div>
+
+    <button type="submit" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.825rem;">Search</button>
+    <a href="/billing/" style="font-size: 0.825rem; color: #718096; text-decoration: none; padding-bottom: 0.5rem;">Clear Filters</a>
+</form>
+
+<!-- Invoices Table -->
+<div class="card-table-wrapper" style="background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">
+                <th style="padding: 0.75rem 1rem;">Invoice Number</th>
+                <th style="padding: 0.75rem 1rem;">Claim Ref</th>
+                <th style="padding: 0.75rem 1rem;">Insurer (Bill To)</th>
+                <th style="padding: 0.75rem 1rem;">Date</th>
+                <th style="padding: 0.75rem 1rem;">Due Date</th>
+                <th style="padding: 0.75rem 1rem;">Status</th>
+                <th style="padding: 0.75rem 1rem; text-align: right;">Subtotal</th>
+                <th style="padding: 0.75rem 1rem; text-align: right;">Tax</th>
+                <th style="padding: 0.75rem 1rem; text-align: right;">Total Amount</th>
+                <th style="padding: 0.75rem 1rem; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in page_obj %}
+                <tr style="border-bottom: 1px solid #edf2f7; font-size: 0.85rem;">
+                    <td style="padding: 0.75rem 1rem; font-weight: 600;">
+                        <a href="/claims/{{ inv.claim.id }}/?tab=billing" style="color: #2b6cb0; text-decoration: none;">
+                            {{ inv.invoice_number }}
+                        </a>
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <a href="/claims/{{ inv.claim.id }}/" style="color: #4a5568; text-decoration: none; font-weight: 500;">
+                            {{ inv.claim.claim_number }}
+                        </a>
+                        <div style="font-size: 0.75rem; color: #718096;">{{ inv.claim.insured.name }}</div>
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <div style="font-weight: 500;">{{ inv.claim.insurer.company_name }}</div>
+                        <div style="font-size: 0.75rem; color: #718096;">{{ inv.claim.insurer.branch_name }}</div>
+                    </td>
+                    <td style="padding: 0.75rem 1rem; color: #4a5568;">
+                        {{ inv.invoice_date|date:"d M Y" }}
+                    </td>
+                    <td style="padding: 0.75rem 1rem; color: #4a5568;">
+                        {{ inv.due_date|date:"d M Y" }}
+                    </td>
+                    <td style="padding: 0.75rem 1rem;">
+                        {% if inv.status == 'DRAFT' %}
+                            <span class="status-pill pill-new" style="background: #edf2f7; color: #4a5568; font-size: 0.75rem; padding: 0.2rem 0.6rem;">Draft</span>
+                        {% elif inv.status == 'SENT' %}
+                            <span class="status-pill pill-assigned" style="background: #ebf8ff; color: #2b6cb0; font-size: 0.75rem; padding: 0.2rem 0.6rem;">Sent</span>
+                            {% if inv.is_overdue %}
+                                <span class="status-pill" style="background: #fed7d7; color: #c53030; font-size: 0.75rem; padding: 0.2rem 0.5rem; font-weight: 700; margin-left: 0.25rem;">OVERDUE</span>
+                            {% endif %}
+                        {% elif inv.status == 'PAID' %}
+                            <span class="status-pill pill-closed" style="background: #def7ec; color: #046c4e; font-size: 0.75rem; padding: 0.2rem 0.6rem;">Paid</span>
+                        {% elif inv.status == 'CANCELLED' %}
+                            <span class="status-pill" style="background: #feecdc; color: #c2410c; font-size: 0.75rem; padding: 0.2rem 0.6rem;">Cancelled</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.75rem 1rem; text-align: right; font-family: monospace;">
+                        ₹{{ inv.subtotal|floatformat:2 }}
+                    </td>
+                    <td style="padding: 0.75rem 1rem; text-align: right; font-family: monospace; color: #718096;">
+                        ₹{{ inv.tax_amount|floatformat:2 }} <span style="font-size: 0.75rem;">({{ inv.tax_percentage }}%)</span>
+                    </td>
+                    <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 700; font-family: monospace; color: #2d3748;">
+                        ₹{{ inv.total_amount|floatformat:2 }}
+                    </td>
+                    <td style="padding: 0.75rem 1rem; text-align: center; white-space: nowrap;">
+                        <a href="/claims/{{ inv.claim.id }}/?tab=billing" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.775rem;">Workspace</a>
+                        <a href="/claims/{{ inv.claim.id }}/billing/pdf/?invoice_id={{ inv.id }}" target="_blank" class="btn" style="background: #4a5568; color: #fff; padding: 0.25rem 0.6rem; font-size: 0.775rem; text-decoration: none; margin-left: 0.25rem;">📄 PDF</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="10" style="padding: 2.5rem; text-align: center; color: #a0aec0;">
+                        No fee invoices found matching the current criteria.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem;">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_insurer %}&insurer={{ current_insurer }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-outline" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">&laquo; Previous</a>
+        {% endif %}
+        <span style="display: inline-flex; align-items: center; padding: 0 0.75rem; font-size: 0.85rem; color: #718096;">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_insurer %}&insurer={{ current_insurer }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-outline" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">Next &raquo;</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

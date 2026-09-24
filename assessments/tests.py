@@ -2,11 +2,11 @@ from datetime import date
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from surveys.models import SurveyType
-from claims.models import Insurer, Insured, Policy, Claim, Priority, ClaimStatus
+from claims.models import Insurer, Insured, Policy, Claim, Priority, ClaimStatus, SurveyAssignment
 from assessments.models import Invoice, Assessment, AssessmentItem
 from assessments.services import recalculate_assessment
 
@@ -77,6 +77,13 @@ class AssessmentTests(TestCase):
             priority=Priority.HIGH,
             status=ClaimStatus.ASSESSMENT_IN_PROGRESS,
             created_by=self.admin_user
+        )
+        self.assignment = SurveyAssignment.objects.create(
+            claim=self.claim,
+            surveyor=self.surveyor,
+            assigned_by=self.admin_user,
+            due_date=date(2026, 9, 30),
+            status=SurveyAssignment.Status.ASSIGNED
         )
 
     def test_invoice_creation_and_validation(self):
@@ -207,3 +214,91 @@ class AssessmentTests(TestCase):
 
         # Gross: 10,000, Salvage: 10,000 -> Adjusted: 0, Excess: 50,000 -> Net cannot be negative
         self.assertEqual(assessment.net_assessed_loss, Decimal('0.00'))
+
+    def test_surveyor_can_add_repair_invoice_via_web(self):
+        client = Client()
+        client.force_login(self.surveyor)
+
+        pdf_doc = SimpleUploadedFile("workshop_bill.pdf", b"%PDF-1.4 sample bill", content_type="application/pdf")
+        url = f"/claims/{self.claim.id}/invoices/add/"
+        response = client.post(url, {
+            'invoice_number': 'BILL-2026-0044',
+            'invoice_date': '2026-09-18',
+            'vendor_name': 'Precision Motors Workshop',
+            'amount': '45000.00',
+            'tax_amount': '8100.00',
+            'description': 'Machinery shaft realignment and replacement seal kit',
+            'remarks': 'Inspected during site visit #2',
+            'document': pdf_doc
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        inv = Invoice.objects.filter(claim=self.claim, invoice_number='BILL-2026-0044').first()
+        self.assertIsNotNone(inv)
+        self.assertEqual(inv.vendor_name, 'Precision Motors Workshop')
+        self.assertEqual(inv.amount, Decimal('45000.00'))
+        self.assertEqual(inv.tax_amount, Decimal('8100.00'))
+        self.assertEqual(inv.total_amount, Decimal('53100.00'))
+        self.assertFalse(inv.verified)
+        self.assertTrue(bool(inv.document))
+
+    def test_surveyor_can_delete_repair_invoice_via_web(self):
+        client = Client()
+        client.force_login(self.surveyor)
+
+        inv = Invoice.objects.create(
+            claim=self.claim,
+            invoice_number='TEMP-DELETE-01',
+            invoice_date=date(2026, 9, 18),
+            vendor_name='Temp Vendor',
+            amount=Decimal('5000.00'),
+            tax_amount=Decimal('0.00'),
+            total_amount=Decimal('5000.00')
+        )
+
+        url = f"/claims/{self.claim.id}/invoices/{inv.id}/delete/"
+        response = client.post(url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Invoice.objects.filter(id=inv.id).exists())
+
+    def test_admin_can_toggle_invoice_verification_via_web(self):
+        client = Client()
+        client.force_login(self.admin_user)
+
+        inv = Invoice.objects.create(
+            claim=self.claim,
+            invoice_number='INV-TO-VERIFY-01',
+            invoice_date=date(2026, 9, 18),
+            vendor_name='Certified Spares Co',
+            amount=Decimal('12000.00'),
+            tax_amount=Decimal('2160.00'),
+            total_amount=Decimal('14160.00'),
+            verified=False
+        )
+
+        url = f"/claims/{self.claim.id}/invoices/{inv.id}/verify/"
+        response = client.post(url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        inv.refresh_from_db()
+        self.assertTrue(inv.verified)
+        self.assertEqual(inv.verified_by, self.admin_user)
+
+    def test_unassigned_surveyor_forbidden_from_adding_invoice(self):
+        unassigned_surveyor = User.objects.create_user(
+            username='other_surveyor',
+            email='other@assess.test',
+            password='password123',
+            role=User.Role.SURVEYOR
+        )
+        client = Client()
+        client.force_login(unassigned_surveyor)
+
+        url = f"/claims/{self.claim.id}/invoices/add/"
+        response = client.post(url, {
+            'invoice_number': 'FORBIDDEN-01',
+            'invoice_date': '2026-09-18',
+            'vendor_name': 'Unauthorized',
+            'amount': '1000.00',
+        })
+        self.assertEqual(response.status_code, 403)
+

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Tax Invoice - {{ invoice.invoice_number }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 14mm 14mm 16mm 14mm;
+
+            @top-right {
+                content: "Fee Invoice";
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 8pt;
+                color: #555;
+                vertical-align: bottom;
+                padding-bottom: 2mm;
+            }
+
+            @top-left {
+                content: "Page " counter(page);
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 8pt;
+                color: #555;
+                vertical-align: bottom;
+                padding-bottom: 2mm;
+            }
+
+            @bottom-center {
+                content: "{{ firm_address }}";
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 7pt;
+                color: #666;
+                border-top: 0.5px solid #ccc;
+                padding-top: 1.5mm;
+                width: 100%;
+            }
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.35;
+            color: #111;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #1a365d;
+            padding-bottom: 8px;
+        }
+
+        .logo-img {
+            max-height: 52px;
+            max-width: 190px;
+        }
+
+        .firm-title {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #1a365d;
+            margin-bottom: 2px;
+        }
+
+        .firm-sub {
+            font-size: 7.5pt;
+            color: #4a5568;
+            line-height: 1.25;
+        }
+
+        .doc-title-bar {
+            background-color: #f7fafc;
+            border: 1px solid #cbd5e0;
+            border-left: 4px solid #2b6cb0;
+            padding: 6px 10px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .doc-title {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #2b6cb0;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .info-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+        }
+
+        .info-grid td {
+            vertical-align: top;
+            padding: 4px 6px;
+        }
+
+        .box-panel {
+            border: 1px solid #e2e8f0;
+            background-color: #fff;
+            padding: 8px 10px;
+            border-radius: 4px;
+            height: 100%;
+        }
+
+        .box-title {
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #2d3748;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 3px;
+            margin-bottom: 6px;
+            letter-spacing: 0.4px;
+        }
+
+        .meta-row {
+            margin-bottom: 3px;
+            font-size: 8pt;
+        }
+
+        .meta-label {
+            font-weight: bold;
+            color: #4a5568;
+            display: inline-block;
+            width: 105px;
+        }
+
+        .table-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 12px;
+        }
+
+        .table-items th {
+            background-color: #2b6cb0;
+            color: #ffffff;
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: left;
+            padding: 6px 8px;
+            border: 1px solid #2b6cb0;
+        }
+
+        .table-items td {
+            font-size: 8pt;
+            padding: 6px 8px;
+            border: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+
+        .table-items tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .totals-table {
+            width: 48%;
+            margin-left: auto;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+        }
+
+        .totals-table td {
+            padding: 5px 8px;
+            font-size: 8.5pt;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .totals-table tr.grand-total td {
+            font-size: 10pt;
+            font-weight: bold;
+            color: #1a365d;
+            border-top: 2px solid #2b6cb0;
+            border-bottom: 2px solid #2b6cb0;
+            background-color: #edf2f7;
+        }
+
+        .notes-box {
+            border: 1px dashed #cbd5e0;
+            background-color: #f7fafc;
+            padding: 8px 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+
+        .notes-title {
+            font-size: 7.5pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #4a5568;
+            margin-bottom: 4px;
+        }
+
+        .signature-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        .signature-table td {
+            vertical-align: bottom;
+            font-size: 8pt;
+        }
+
+        .stamp-box {
+            text-align: center;
+        }
+
+        .stamp-img {
+            max-height: 65px;
+        }
+
+        .status-stamp {
+            display: inline-block;
+            border: 2px solid #047857;
+            color: #047857;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: 9pt;
+            text-transform: uppercase;
+            border-radius: 4px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header Section with Firm Branding -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 55%; vertical-align: middle;">
+                <div class="firm-title">{{ firm_name }}</div>
+                <div class="firm-sub">{{ firm_address }}</div>
+                {% if firm_gstin %}
+                    <div class="firm-sub" style="font-weight: bold; margin-top: 2px;">GSTIN: {{ firm_gstin }}</div>
+                {% endif %}
+            </td>
+            <td style="width: 45%; text-align: right; vertical-align: middle;">
+                {% if soteria_logo %}
+                    <img src="{{ soteria_logo }}" class="logo-img" alt="Firm Logo">
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Document Title & Header Meta -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+        <tr>
+            <td style="vertical-align: middle;">
+                <span class="doc-title">TAX INVOICE</span>
+            </td>
+            <td style="text-align: right; vertical-align: middle;">
+                {% if invoice.status == 'PAID' %}
+                    <span class="status-stamp">PAID</span>
+                {% elif invoice.status == 'CANCELLED' %}
+                    <span class="status-stamp" style="border-color: #c53030; color: #c53030;">CANCELLED</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Two-Column Meta: Bill To & Invoice Info -->
+    <table class="info-grid">
+        <tr>
+            <td style="width: 52%; padding-left: 0;">
+                <div class="box-panel">
+                    <div class="box-title">Bill To (Insurer)</div>
+                    <div style="font-weight: bold; font-size: 8.5pt; color: #1a202c; margin-bottom: 3px;">
+                        {{ insurer.company_name }}
+                    </div>
+                    <div style="color: #4a5568; line-height: 1.3;">
+                        {{ insurer.branch_name }}<br>
+                        {{ insurer.address }}<br>
+                        {{ insurer.city }}, {{ insurer.state }} - {{ insurer.pincode }}
+                    </div>
+                    {% if insurer.gstin %}
+                        <div style="font-weight: bold; margin-top: 4px; color: #2d3748;">
+                            Insurer GSTIN: {{ insurer.gstin }}
+                        </div>
+                    {% endif %}
+                    {% if insurer.contact_person %}
+                        <div style="color: #718096; margin-top: 3px; font-size: 7.5pt;">
+                            Attn: {{ insurer.contact_person }} | {{ insurer.email }} | {{ insurer.phone }}
+                        </div>
+                    {% endif %}
+                </div>
+            </td>
+            <td style="width: 48%; padding-right: 0;">
+                <div class="box-panel">
+                    <div class="box-title">Invoice Details &amp; Reference</div>
+                    <div class="meta-row">
+                        <span class="meta-label">Invoice Number:</span>
+                        <strong style="color: #2b6cb0;">{{ invoice.invoice_number }}</strong>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Invoice Date:</span>
+                        {{ invoice.invoice_date|date:"d/m/Y" }}
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Payment Due:</span>
+                        <strong>{{ invoice.due_date|date:"d/m/Y" }}</strong>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Claim Number:</span>
+                        <strong>{{ claim.claim_number }}</strong>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Policy Number:</span>
+                        {{ claim.policy.policy_number }}
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Insured Name:</span>
+                        {{ claim.insured.name }}
+                    </div>
+                    {% if invoice.payment_reference %}
+                    <div class="meta-row">
+                        <span class="meta-label">Payment Ref:</span>
+                        {{ invoice.payment_reference }}
+                    </div>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Line Items Table -->
+    <table class="table-items">
+        <thead>
+            <tr>
+                <th style="width: 6%; text-align: center;">#</th>
+                <th style="width: 54%;">Particulars / Description of Services</th>
+                <th style="width: 12%; text-align: right;">Qty</th>
+                <th style="width: 14%; text-align: right;">Rate (₹)</th>
+                <th style="width: 14%; text-align: right;">Amount (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="text-center">{{ forloop.counter }}</td>
+                <td>{{ item.description }}</td>
+                <td class="text-right">{{ item.quantity|floatformat:2 }}</td>
+                <td class="text-right">{{ item.rate|floatformat:2 }}</td>
+                <td class="text-right" style="font-weight: 600;">{{ item.amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center" style="padding: 15px; color: #a0aec0;">
+                    No line items billed.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Totals Breakdown Table -->
+    <table class="totals-table">
+        <tr>
+            <td style="color: #4a5568;">Subtotal:</td>
+            <td class="text-right" style="font-family: monospace;">₹{{ invoice.subtotal|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td style="color: #4a5568;">GST ({{ invoice.tax_percentage }}%):</td>
+            <td class="text-right" style="font-family: monospace;">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+        </tr>
+        <tr class="grand-total">
+            <td>Total Invoice Amount:</td>
+            <td class="text-right" style="font-family: monospace;">₹{{ invoice.total_amount|floatformat:2 }}</td>
+        </tr>
+    </table>
+
+    <!-- Notes Section (Bank Details / Remittance instructions) -->
+    {% if invoice.notes %}
+    <div class="notes-box">
+        <div class="notes-title">Payment Instructions &amp; Bank Details:</div>
+        <div style="font-size: 8pt; color: #2d3748; white-space: pre-line;">{{ invoice.notes }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Signatory Block -->
+    <table class="signature-table">
+        <tr>
+            <td style="width: 60%; color: #718096; font-size: 7.5pt;">
+                This is a computer generated invoice on behalf of <strong>{{ firm_name }}</strong>.<br>
+                Please quote invoice number <strong>{{ invoice.invoice_number }}</strong> when making remittance.
+            </td>
+            <td style="width: 40%; text-align: right;">
+                <div style="font-weight: bold; font-size: 8pt; margin-bottom: 6px;">For {{ firm_name }}</div>
+                {% if soteria_stamp %}
+                    <img src="{{ soteria_stamp }}" class="stamp-img" alt="Stamp">
+                {% elif soteria_signature %}
+                    <img src="{{ soteria_signature }}" class="stamp-img" alt="Signature">
+                {% else %}
+                    <div style="height: 45px;"></div>
+                {% endif %}
+                <div style="font-weight: bold; font-size: 8pt; border-top: 1px solid #718096; padding-top: 2px; display: inline-block;">
+                    Authorized Signatory
+                </div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+
+</html>
