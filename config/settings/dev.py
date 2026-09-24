@@ -9,7 +9,7 @@ DEBUG = env.bool('DEBUG', default=True)
 
 # Database: Default to SQLite for local development
 DATABASES = {
-    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
+    'default': env.db(default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
 }
 
 # Allow all origins in local development
