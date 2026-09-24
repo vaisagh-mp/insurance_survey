@@ -15,4 +15,10 @@ python manage.py collectstatic --no-input
 echo "==> Applying database migrations..."
 python manage.py migrate --no-input
 
+# Optional: Automatically create superuser on deployment if environment variables are configured
+if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+    echo "==> Ensuring superuser exists..."
+    python manage.py createsuperuser --no-input || true
+fi
+
 echo "==> Build process completed successfully!"
