@@ -19,7 +19,7 @@ from surveys.forms import InspectionForm
 from documents.models import DocumentType, ClaimDocument, Requirement
 from documents.forms import RequirementForm, ClaimDocumentForm
 from assessments.models import Assessment, AssessmentItem, Invoice
-from assessments.forms import AssessmentFinancialForm, AssessmentItemForm
+from assessments.forms import AssessmentFinancialForm, AssessmentItemForm, InvoiceForm
 from assessments.services import recalculate_assessment
 from reports.models import AuditLog, ILA, ISR, FSR, ReportStatus
 from reports.forms import ILAForm, ISRForm, FSRForm
@@ -321,6 +321,9 @@ def claim_detail(request, pk):
         'lor', 'documents', 'photos', 'invoices', 'assessment',
         'isr', 'fsr', 'activity'
     ]
+    if request.user.role == User.Role.ADMIN or request.user.is_superuser:
+        valid_tabs.append('billing')
+
     active_tab = request.GET.get('tab', 'overview').lower()
     if active_tab not in valid_tabs:
         active_tab = 'overview'
@@ -386,6 +389,7 @@ def claim_detail(request, pk):
     isr_form = None
     fsr_form = None
     claim_document_form = ClaimDocumentForm()
+    invoice_form = InvoiceForm()
 
     if request.user.role == User.Role.SURVEYOR:
         # Latest inspection or blank form
@@ -475,6 +479,7 @@ def claim_detail(request, pk):
         'survey_details': survey_details,
         'available_surveyors': User.objects.filter(role=User.Role.SURVEYOR, is_active=True).order_by('first_name', 'username'),
         'claim_document_form': claim_document_form,
+        'invoice_form': invoice_form,
         # Interactive forms
         'inspection_form': inspection_form,
         'lor_form': lor_form,
@@ -483,6 +488,10 @@ def claim_detail(request, pk):
         'ila_form': ila_form,
         'isr_form': isr_form,
         'fsr_form': fsr_form,
+        # Billing App Data (Admin Only)
+        'service_invoice': claim.service_invoices.exclude(status='CANCELLED').first() if (request.user.role == User.Role.ADMIN or request.user.is_superuser) else None,
+        'service_invoice_items': (claim.service_invoices.exclude(status='CANCELLED').first().items.all().order_by('id')) if ((request.user.role == User.Role.ADMIN or request.user.is_superuser) and claim.service_invoices.exclude(status='CANCELLED').exists()) else [],
+        'cancelled_service_invoices': claim.service_invoices.filter(status='CANCELLED').order_by('-updated_at') if (request.user.role == User.Role.ADMIN or request.user.is_superuser) else [],
     }
     return render(request, 'claims/claim_detail.html', context)
 
@@ -789,6 +798,61 @@ def claim_document_upload(request, pk):
             messages.error(request, err.as_text())
 
     return redirect(f'/claims/{pk}/?tab=documents')
+
+
+def claim_invoice_add(request, pk):
+    """Surveyor or Admin adds a repair/replacement loss invoice for the claim."""
+    if not request.user.is_authenticated:
+        return redirect(f"/login/?next={request.path}")
+    if request.method != 'POST':
+        return redirect(f'/claims/{pk}/?tab=invoices')
+
+    claim = _get_claim_for_surveyor(request, pk)
+    form = InvoiceForm(request.POST, request.FILES)
+    if form.is_valid():
+        inv = form.save(commit=False)
+        inv.claim = claim
+        inv.total_amount = (inv.amount or Decimal('0.00')) + (inv.tax_amount or Decimal('0.00'))
+        inv.save()
+        messages.success(request, f"Repair invoice #{inv.invoice_number} from '{inv.vendor_name}' added successfully.")
+    else:
+        for field, errors in form.errors.items():
+            for err in errors:
+                messages.error(request, f"{field.replace('_', ' ').capitalize()}: {err}")
+
+    return redirect(f'/claims/{pk}/?tab=invoices')
+
+
+def claim_invoice_delete(request, pk, inv_id):
+    """Surveyor or Admin deletes a repair/replacement invoice."""
+    if not request.user.is_authenticated:
+        return redirect(f"/login/?next={request.path}")
+    if request.method != 'POST':
+        return redirect(f'/claims/{pk}/?tab=invoices')
+
+    claim = _get_claim_for_surveyor(request, pk)
+    inv = get_object_or_404(Invoice, pk=inv_id, claim=claim)
+    inv_num = inv.invoice_number
+    inv.delete()
+    messages.success(request, f"Repair invoice #{inv_num} deleted.")
+    return redirect(f'/claims/{pk}/?tab=invoices')
+
+
+def claim_invoice_verify(request, pk, inv_id):
+    """Admin or Surveyor toggles verification status of a repair invoice."""
+    if not request.user.is_authenticated:
+        return redirect(f"/login/?next={request.path}")
+    if request.method != 'POST':
+        return redirect(f'/claims/{pk}/?tab=invoices')
+
+    claim = _get_claim_for_surveyor(request, pk)
+    inv = get_object_or_404(Invoice, pk=inv_id, claim=claim)
+    inv.verified = not inv.verified
+    inv.verified_by = request.user if inv.verified else None
+    inv.save(update_fields=['verified', 'verified_by', 'updated_at'])
+    status_str = "verified" if inv.verified else "marked as pending"
+    messages.success(request, f"Repair invoice #{inv.invoice_number} {status_str}.")
+    return redirect(f'/claims/{pk}/?tab=invoices')
 
 
 @surveyor_required
@@ -1122,7 +1186,8 @@ def claim_approve_and_close(request, pk):
             report.save(update_fields=['status', 'updated_at'])
             close_claim(claim, request.user, remarks=remarks, request=request)
     except ValidationError as exc:
-        messages.error(request, f"Close failed: {exc.message}")
+        err_msg = exc.message if hasattr(exc, 'message') else '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc)
+        messages.error(request, f"Close failed: {err_msg}")
         return redirect(f'/claims/{pk}/?tab=overview')
 
     messages.success(request, f"Claim {claim.claim_number} has been approved and closed.")

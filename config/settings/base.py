@@ -55,12 +55,14 @@ LOCAL_APPS = [
     'documents.apps.DocumentsConfig',
     'assessments.apps.AssessmentsConfig',
     'reports.apps.ReportsConfig',
+    'billing.apps.BillingConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -195,3 +197,8 @@ SPECTACULAR_SETTINGS = {
         'InspectionSeverityEnum': 'surveys.models.InspectionObservation.Severity',
     },
 }
+
+# Firm Details for Fee Invoices / Billing
+FIRM_NAME = 'SOTERIA Insurance Surveyors & Loss Assessors Pvt. Ltd.'
+FIRM_ADDRESS = 'Z3215, 3rd floor, Akshar Business Park, Sector 25 Vashi-Thurbe, Navi Mumbai, Maharashtra-400703'
+FIRM_GSTIN = '27AAACS0000A1Z5'

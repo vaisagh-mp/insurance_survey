@@ -39,6 +39,7 @@ class Insurer(models.Model):
     contact_person = models.CharField(max_length=150)
     phone = models.CharField(max_length=30)
     email = models.EmailField()
+    gstin = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

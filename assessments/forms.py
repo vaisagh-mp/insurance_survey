@@ -48,3 +48,31 @@ class AssessmentItemForm(forms.ModelForm):
             'claimed_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'remarks': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Line-item remarks / basis of recommendation'}),
         }
+
+
+class InvoiceForm(forms.ModelForm):
+    """Form to add or edit repair/replacement loss invoices."""
+    class Meta:
+        from .models import Invoice
+        model = Invoice
+        fields = [
+            'invoice_number',
+            'invoice_date',
+            'vendor_name',
+            'amount',
+            'tax_amount',
+            'description',
+            'document',
+            'remarks',
+        ]
+        widgets = {
+            'invoice_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. INV-2024-0012', 'required': True}),
+            'invoice_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date', 'required': True}),
+            'vendor_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Vendor / Workshop / Supplier Name', 'required': True}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'Base Amount (₹)', 'required': True}),
+            'tax_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'Tax Amount (₹)', 'value': '0.00'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Scope of repair, parts replaced, or service details'}),
+            'document': forms.FileInput(attrs={'class': 'form-control', 'accept': '.pdf,.png,.jpg,.jpeg'}),
+            'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Surveyor verification notes or remarks'}),
+        }
+

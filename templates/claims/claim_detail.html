@@ -34,15 +34,17 @@
     </div>
     {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
         {% if claim.status == 'REPORT_SUBMITTED' or claim.status == 'RESUBMITTED' or claim.status == 'FSR_PREPARED' %}
-        <div style="margin-top: 0.75rem;">
-            <button type="button"
-                    id="btn-approve-close"
-                    onclick="document.getElementById('modal-approve-close').style.display='flex'"
-                    class="btn"
-                    style="background: linear-gradient(135deg,#065f46,#047857); color:#fff; border:none; padding:0.45rem 1.1rem; font-size:0.85rem; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; box-shadow:0 2px 8px rgba(4,120,87,0.25);">
-                ✅ Approve &amp; Close Claim
-            </button>
-        </div>
+            {% if claim.latest_submitted_report and claim.latest_submitted_report.status == 'SUBMITTED' %}
+            <div style="margin-top: 0.75rem;">
+                <button type="button"
+                        id="btn-approve-close"
+                        onclick="document.getElementById('modal-approve-close').style.display='flex'"
+                        class="btn"
+                        style="background: linear-gradient(135deg,#065f46,#047857); color:#fff; border:none; padding:0.45rem 1.1rem; font-size:0.85rem; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:0.4rem; box-shadow:0 2px 8px rgba(4,120,87,0.25);">
+                    ✅ Approve &amp; Close Claim
+                </button>
+            </div>
+            {% endif %}
         {% endif %}
     {% endif %}
 </div>
@@ -63,6 +65,9 @@
         <a href="?tab=isr" class="tab-item {% if active_tab == 'isr' %}active{% endif %}">ISR</a>
         <a href="?tab=fsr" class="tab-item {% if active_tab == 'fsr' %}active{% endif %}">FSR</a>
         <a href="?tab=activity" class="tab-item {% if active_tab == 'activity' %}active{% endif %}">Activity</a>
+        {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+            <a href="?tab=billing" class="tab-item {% if active_tab == 'billing' %}active{% endif %}">💰 Billing</a>
+        {% endif %}
     </nav>
 </div>
 
@@ -944,8 +949,16 @@
     <!-- TAB 9: INVOICES -->
     {% if active_tab == 'invoices' %}
         <div class="card-table-wrapper">
-            <div class="card-table-header">
-                <div class="card-table-title">Repair &amp; Replacement Invoices</div>
+            <div class="card-table-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0;">
+                <div>
+                    <div class="card-table-title" style="font-size: 1.1rem; font-weight: 700; color: #1a202c;">Repair &amp; Replacement Invoices</div>
+                    <div style="font-size: 0.8rem; color: #718096; margin-top: 0.2rem;">Evidence of loss submitted by the insured / workshops for claim assessment</div>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.45rem 0.9rem; display: inline-flex; align-items: center; gap: 0.35rem;" onclick="document.getElementById('modal-add-invoice').style.display='flex'">
+                        ➕ Add Repair Invoice
+                    </button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="data-table-modern">
@@ -953,47 +966,155 @@
                         <tr>
                             <th>Invoice No.</th>
                             <th>Invoice Date</th>
-                            <th>Vendor / Supplier</th>
-                            <th>Base Amount</th>
-                            <th>Tax</th>
-                            <th>Total Amount</th>
-                            <th>Verified</th>
-                            <th>Document</th>
+                            <th>Vendor / Workshop</th>
+                            <th style="text-align: right;">Base Amount</th>
+                            <th style="text-align: right;">Tax</th>
+                            <th style="text-align: right;">Total Amount</th>
+                            <th style="text-align: center;">Verified</th>
+                            <th style="text-align: center;">Document</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for inv in invoices %}
                             <tr>
-                                <td><strong>{{ inv.invoice_number }}</strong></td>
+                                <td>
+                                    <strong>{{ inv.invoice_number }}</strong>
+                                    {% if inv.description %}
+                                        <div style="font-size: 0.75rem; color: #718096;">{{ inv.description|truncatechars:40 }}</div>
+                                    {% endif %}
+                                </td>
                                 <td>{{ inv.invoice_date|date:"d M Y" }}</td>
                                 <td>{{ inv.vendor_name }}</td>
-                                <td>Rs. {{ inv.amount|floatformat:2 }}</td>
-                                <td>Rs. {{ inv.tax_amount|floatformat:2 }}</td>
-                                <td><strong>Rs. {{ inv.total_amount|floatformat:2 }}</strong></td>
-                                <td>
+                                <td style="text-align: right; font-family: monospace;">₹{{ inv.amount|floatformat:2 }}</td>
+                                <td style="text-align: right; font-family: monospace; color: #718096;">₹{{ inv.tax_amount|floatformat:2 }}</td>
+                                <td style="text-align: right; font-weight: 700; font-family: monospace; color: #2d3748;">₹{{ inv.total_amount|floatformat:2 }}</td>
+                                <td style="text-align: center;">
                                     {% if inv.verified %}
-                                        <span class="badge badge-success">✓ Verified</span>
+                                        <span class="badge badge-success" title="Verified by {{ inv.verified_by.get_full_name|default:inv.verified_by.username }}">✓ Verified</span>
                                     {% else %}
                                         <span class="badge" style="background-color: #fef08a; color: #854d0e;">Pending</span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td style="text-align: center;">
                                     {% if inv.document %}
-                                        <a href="{% url 'secure_media' path=inv.document.name %}" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">View</a>
+                                        <a href="{% url 'secure_media' path=inv.document.name %}" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; text-decoration: none;">
+                                            📄 View
+                                        </a>
                                     {% else %}
                                         <span style="color: #a0aec0; font-size: 0.8rem;">—</span>
                                     {% endif %}
                                 </td>
+                                <td style="text-align: center; white-space: nowrap;">
+                                    <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+                                        {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+                                            <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/verify/" style="display: inline; margin: 0;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; color: {% if inv.verified %}#d97706{% else %}#059669{% endif %};" title="Toggle verification">
+                                                    {% if inv.verified %}Unverify{% else %}✓ Verify{% endif %}
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/delete/" style="display: inline; margin: 0;" onsubmit="return confirm('Delete invoice #{{ inv.invoice_number }}?');">
+                                            {% csrf_token %}
+                                            <button type="submit" style="background: none; border: none; color: #e53e3e; cursor: pointer; font-size: 0.85rem;" title="Delete Invoice">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                         {% empty %}
                             <tr>
-                                <td colspan="8" style="text-align: center; color: #718096; padding: 2rem;">No repair/replacement invoices submitted.</td>
+                                <td colspan="9" style="text-align: center; color: #718096; padding: 2.5rem 1rem;">
+                                    No repair/replacement invoices submitted yet. Click <strong>+ Add Repair Invoice</strong> to record a bill.
+                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <!-- Modal: Add Repair & Replacement Invoice -->
+        <div id="modal-add-invoice" style="display: none; position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,0.55); align-items: center; justify-content: center;" onclick="if(event.target === this) closeAddInvoiceModal();">
+            <div style="background: #fff; border-radius: 12px; padding: 1.75rem; width: 100%; max-width: 540px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem;">
+                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #1a202c;">
+                        ➕ Add Repair / Replacement Invoice
+                    </h3>
+                    <button type="button" onclick="closeAddInvoiceModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #718096;" title="Close">&times;</button>
+                </div>
+                <form id="form-add-invoice" method="post" action="/claims/{{ claim.id }}/invoices/add/" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Invoice No. <span style="color: #e53e3e;">*</span></label>
+                            {{ invoice_form.invoice_number }}
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Invoice Date <span style="color: #e53e3e;">*</span></label>
+                            {{ invoice_form.invoice_date }}
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Vendor / Workshop Name <span style="color: #e53e3e;">*</span></label>
+                        {{ invoice_form.vendor_name }}
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Base Amount (₹) <span style="color: #e53e3e;">*</span></label>
+                            {{ invoice_form.amount }}
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Tax Amount (₹)</label>
+                            {{ invoice_form.tax_amount }}
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Description / Particulars</label>
+                        {{ invoice_form.description }}
+                    </div>
+
+                    <div style="margin-bottom: 0.75rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Attach Bill / Invoice File (PDF, Image)</label>
+                        {{ invoice_form.document }}
+                    </div>
+
+                    <div style="margin-bottom: 1.25rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Remarks</label>
+                        {{ invoice_form.remarks }}
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">
+                        <button type="button" onclick="closeAddInvoiceModal()" class="btn btn-outline" style="font-size: 0.825rem;">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.45rem 1.25rem;">
+                            💾 Save Invoice
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script>
+            function closeAddInvoiceModal() {
+                var modal = document.getElementById('modal-add-invoice');
+                if (modal) {
+                    modal.style.display = 'none';
+                    var form = document.getElementById('form-add-invoice');
+                    if (form) form.reset();
+                }
+            }
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeAddInvoiceModal();
+                }
+            });
+        </script>
     {% endif %}
 
     <!-- TAB 10: ASSESSMENT -->
@@ -1637,9 +1758,347 @@
         </div>
     {% endif %}
 
+    <!-- TAB 14: BILLING (ADMIN ONLY) -->
+    {% if active_tab == 'billing' and request.user.role == 'ADMIN' or active_tab == 'billing' and request.user.is_superuser %}
+        {% if service_invoice %}
+            <!-- Existing Active Fee Invoice Panel -->
+            <div class="form-card" style="max-width: 100%; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <h3 style="font-size: 1.3rem; font-weight: 700; color: #1a202c; margin: 0;">
+                                Invoice {{ service_invoice.invoice_number }}
+                            </h3>
+                            {% if service_invoice.status == 'DRAFT' %}
+                                <span class="status-pill pill-new" style="font-size: 0.8rem; padding: 0.25rem 0.75rem;">Draft</span>
+                            {% elif service_invoice.status == 'SENT' %}
+                                <span class="status-pill pill-assigned" style="font-size: 0.8rem; padding: 0.25rem 0.75rem;">Sent to Insurer</span>
+                                {% if service_invoice.is_overdue %}
+                                    <span class="status-pill" style="background: #fed7d7; color: #c53030; font-size: 0.8rem; padding: 0.25rem 0.6rem; font-weight: 700;">OVERDUE</span>
+                                {% endif %}
+                            {% elif service_invoice.status == 'PAID' %}
+                                <span class="status-pill pill-closed" style="background: #def7ec; color: #046c4e; font-size: 0.8rem; padding: 0.25rem 0.75rem;">Paid</span>
+                            {% elif service_invoice.status == 'CANCELLED' %}
+                                <span class="status-pill" style="background: #feecdc; color: #c2410c; font-size: 0.8rem; padding: 0.25rem 0.75rem;">Cancelled</span>
+                            {% endif %}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #718096; margin-top: 0.35rem;">
+                            <strong>Invoice Date:</strong> {{ service_invoice.invoice_date|date:"d M Y" }} &bull;
+                            <strong>Due Date:</strong> {{ service_invoice.due_date|date:"d M Y" }}
+                            {% if service_invoice.sent_at %} &bull; <strong>Sent:</strong> {{ service_invoice.sent_at|date:"d M Y H:i" }}{% endif %}
+                            {% if service_invoice.paid_at %} &bull; <strong>Paid:</strong> {{ service_invoice.paid_at|date:"d M Y H:i" }} (Ref: {{ service_invoice.payment_reference }}){% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <a href="/claims/{{ claim.id }}/billing/pdf/" target="_blank" class="btn" style="background: #2b6cb0; color: #fff; font-size: 0.825rem; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none;">
+                            📄 Download PDF
+                        </a>
+
+                        {% if service_invoice.status == 'DRAFT' %}
+                            <form method="post" action="/claims/{{ claim.id }}/billing/mark-sent/" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn" style="background: #2b6cb0; color: #fff; font-size: 0.825rem;" onclick="return confirm('Confirm marking this invoice as SENT to Insurer? Line items will be locked.');">
+                                    📤 Mark Sent
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-danger" style="font-size: 0.825rem;" onclick="document.getElementById('modal-cancel-invoice').style.display='flex'">
+                                ❌ Cancel Invoice
+                            </button>
+                        {% elif service_invoice.status == 'SENT' %}
+                            <button type="button" class="btn" style="background: #059669; color: #fff; font-size: 0.825rem;" onclick="document.getElementById('modal-payment-invoice').style.display='flex'">
+                                💳 Record Payment
+                            </button>
+                            <button type="button" class="btn btn-danger" style="font-size: 0.825rem;" onclick="document.getElementById('modal-cancel-invoice').style.display='flex'">
+                                ❌ Cancel Invoice
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Lock Notice Banner if not DRAFT -->
+                {% if service_invoice.status != 'DRAFT' %}
+                    <div style="background: #ebf8ff; border: 1px solid #bee3f8; border-left: 4px solid #3182ce; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1.25rem; font-size: 0.85rem; color: #2c5282;">
+                        🔒 <strong>Invoice Locked:</strong> This invoice is currently in <strong>{{ service_invoice.get_status_display }}</strong> status. Line items and totals are locked and cannot be edited.
+                    </div>
+                {% endif %}
+
+                <!-- Line Items Table -->
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin: 0;">Fee Particulars / Services</h4>
+                    </div>
+
+                    <table class="data-table" style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 0.775rem; text-transform: uppercase; color: #4a5568;">
+                                <th style="padding: 0.6rem 0.75rem; width: 5%;">#</th>
+                                <th style="padding: 0.6rem 0.75rem; width: 50%;">Description</th>
+                                <th style="padding: 0.6rem 0.75rem; width: 12%; text-align: right;">Quantity</th>
+                                <th style="padding: 0.6rem 0.75rem; width: 15%; text-align: right;">Rate (₹)</th>
+                                <th style="padding: 0.6rem 0.75rem; width: 15%; text-align: right;">Amount (₹)</th>
+                                {% if service_invoice.status == 'DRAFT' %}
+                                    <th style="padding: 0.6rem 0.75rem; width: 8%; text-align: center;">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for itm in service_invoice_items %}
+                                <tr style="border-bottom: 1px solid #edf2f7; font-size: 0.85rem;">
+                                    <td style="padding: 0.6rem 0.75rem; color: #718096;">{{ forloop.counter }}</td>
+                                    <td style="padding: 0.6rem 0.75rem; font-weight: 500;">{{ itm.description }}</td>
+                                    <td style="padding: 0.6rem 0.75rem; text-align: right; font-family: monospace;">{{ itm.quantity|floatformat:2 }}</td>
+                                    <td style="padding: 0.6rem 0.75rem; text-align: right; font-family: monospace;">₹{{ itm.rate|floatformat:2 }}</td>
+                                    <td style="padding: 0.6rem 0.75rem; text-align: right; font-weight: 600; font-family: monospace;">₹{{ itm.amount|floatformat:2 }}</td>
+                                    {% if service_invoice.status == 'DRAFT' %}
+                                        <td style="padding: 0.6rem 0.75rem; text-align: center;">
+                                            <form method="post" action="/claims/{{ claim.id }}/billing/item/{{ itm.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this line item?');">
+                                                {% csrf_token %}
+                                                <button type="submit" style="background: none; border: none; color: #e53e3e; cursor: pointer; font-size: 0.9rem;" title="Delete item">🗑️</button>
+                                            </form>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="{% if service_invoice.status == 'DRAFT' %}6{% else %}5{% endif %}" style="padding: 1.5rem; text-align: center; color: #a0aec0;">
+                                        No items added to this invoice yet. Add an item below to compute totals.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <!-- Add Line Item Form (DRAFT only) -->
+                    {% if service_invoice.status == 'DRAFT' %}
+                        <div style="background: #f8fafc; border: 1px dashed #cbd5e0; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 0.75rem;">
+                            <form method="post" action="/claims/{{ claim.id }}/billing/item/add/" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+                                {% csrf_token %}
+                                <div style="flex: 2; min-width: 200px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.2rem;">Description *</label>
+                                    <input type="text" name="description" required placeholder="e.g. Survey & Loss Assessment Fee" class="form-control" style="font-size: 0.85rem;">
+                                </div>
+                                <div style="width: 100px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.2rem;">Quantity</label>
+                                    <input type="number" step="0.01" min="0.01" name="quantity" value="1.00" class="form-control" style="font-size: 0.85rem;">
+                                </div>
+                                <div style="width: 140px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.2rem;">Rate (₹) *</label>
+                                    <input type="number" step="0.01" min="0.00" name="rate" required placeholder="0.00" class="form-control" style="font-size: 0.85rem;">
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="padding: 0.45rem 1rem; font-size: 0.825rem;">+ Add Item</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Totals Breakdown & Invoice Parameters Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                    <!-- Invoice Header & Notes Form / Info -->
+                    <div>
+                        {% if service_invoice.status == 'DRAFT' %}
+                            <form method="post" action="/claims/{{ claim.id }}/billing/save/">
+                                {% csrf_token %}
+                                <h4 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">Invoice Parameters &amp; Notes</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">Invoice Date</label>
+                                        <input type="date" name="invoice_date" value="{{ service_invoice.invoice_date|date:'Y-m-d' }}" class="form-control" style="font-size: 0.825rem;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">Due Date</label>
+                                        <input type="date" name="due_date" value="{{ service_invoice.due_date|date:'Y-m-d' }}" class="form-control" style="font-size: 0.825rem;">
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 0.75rem;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">GST Tax Percentage (%)</label>
+                                    <input type="number" step="0.01" min="0" name="tax_percentage" value="{{ service_invoice.tax_percentage }}" class="form-control" style="font-size: 0.825rem; width: 140px;">
+                                </div>
+                                <div style="margin-bottom: 0.75rem;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">Payment Notes / Bank Details (Printed on PDF)</label>
+                                    <textarea name="notes" rows="2" class="form-control" style="font-size: 0.825rem;" placeholder="e.g. Bank: HDFC, A/C: 12345678, IFSC: HDFC0001">{{ service_invoice.notes }}</textarea>
+                                </div>
+                                <div style="margin-bottom: 0.75rem;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568;">Internal Remarks (Never printed on PDF)</label>
+                                    <textarea name="remarks" rows="2" class="form-control" style="font-size: 0.825rem;" placeholder="Internal billing remarks">{{ service_invoice.remarks }}</textarea>
+                                </div>
+                                <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.9rem;">💾 Save Invoice Parameters</button>
+                            </form>
+                        {% else %}
+                            <h4 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">Payment Notes &amp; Remarks</h4>
+                            {% if service_invoice.notes %}
+                                <div style="background: #f7fafc; border: 1px solid #e2e8f0; padding: 0.6rem 0.75rem; border-radius: 4px; font-size: 0.8rem; margin-bottom: 0.75rem;">
+                                    <strong>Payment Notes (on PDF):</strong><br>
+                                    {{ service_invoice.notes|linebreaksbr }}
+                                </div>
+                            {% endif %}
+                            {% if service_invoice.remarks %}
+                                <div style="background: #fffaf0; border: 1px solid #feebc8; padding: 0.6rem 0.75rem; border-radius: 4px; font-size: 0.8rem;">
+                                    <strong>Internal Remarks:</strong><br>
+                                    {{ service_invoice.remarks|linebreaksbr }}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <!-- Totals Summary Card -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
+                        <h4 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin: 0 0 1rem;">Invoice Financial Summary</h4>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                            <tr>
+                                <td style="padding: 0.4rem 0; color: #4a5568;">Subtotal:</td>
+                                <td style="padding: 0.4rem 0; text-align: right; font-family: monospace; font-weight: 500;">
+                                    ₹{{ service_invoice.subtotal|floatformat:2 }}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.4rem 0; color: #4a5568;">
+                                    GST ({{ service_invoice.tax_percentage }}%):
+                                </td>
+                                <td style="padding: 0.4rem 0; text-align: right; font-family: monospace; font-weight: 500;">
+                                    ₹{{ service_invoice.tax_amount|floatformat:2 }}
+                                </td>
+                            </tr>
+                            <tr style="border-top: 2px solid #cbd5e0; font-size: 1.05rem;">
+                                <td style="padding: 0.6rem 0; font-weight: 700; color: #1a202c;">Total Invoice Amount:</td>
+                                <td style="padding: 0.6rem 0; text-align: right; font-family: monospace; font-weight: 700; color: #2b6cb0;">
+                                    ₹{{ service_invoice.total_amount|floatformat:2 }}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <!-- Create Fee Invoice Card (When No Active Invoice Exists) -->
+            <div class="form-card" style="max-width: 100%; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin-bottom: 0.5rem;">
+                    Create Firm Fee Invoice
+                </h3>
+                <p style="font-size: 0.85rem; color: #718096; margin-bottom: 1.25rem;">
+                    No active service fee invoice exists for this claim. Fill in the details below to generate a new Draft fee invoice for <strong>{{ claim.insurer.company_name }}</strong>.
+                </p>
+
+                <form method="post" action="/claims/{{ claim.id }}/billing/create/" style="max-width: 650px;">
+                    {% csrf_token %}
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight: 600; color: #374151; display: block; margin-bottom: 0.25rem;">Invoice Date *</label>
+                            <input type="date" name="invoice_date" value="{% now 'Y-m-d' %}" required class="form-control">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight: 600; color: #374151; display: block; margin-bottom: 0.25rem;">Due Date</label>
+                            <input type="date" name="due_date" class="form-control" placeholder="Defaults to +30 days">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #374151; display: block; margin-bottom: 0.25rem;">GST Rate (%)</label>
+                        <input type="number" step="0.01" min="0" name="tax_percentage" value="18.00" class="form-control" style="width: 150px;">
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #374151; display: block; margin-bottom: 0.25rem;">Bank / Payment Instructions (Printed on PDF)</label>
+                        <textarea name="notes" rows="2" class="form-control" placeholder="Bank details, Account number, IFSC code, etc."></textarea>
+                    </div>
+
+                    <div style="margin-bottom: 1.25rem;">
+                        <label style="font-size: 0.8rem; font-weight: 600; color: #374151; display: block; margin-bottom: 0.25rem;">Internal Remarks (Not printed on PDF)</label>
+                        <textarea name="remarks" rows="2" class="form-control" placeholder="Internal notes for surveyors/admins"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem;">
+                        ➕ Create Draft Invoice
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+
+        <!-- Previously Cancelled Invoices History -->
+        {% if cancelled_service_invoices %}
+            <div class="form-card" style="max-width: 100%; margin-top: 1.5rem;">
+                <h4 style="font-size: 0.95rem; font-weight: 700; color: #718096; margin-bottom: 0.75rem;">
+                    Cancelled Invoices History
+                </h4>
+                <table class="data-table" style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 0.825rem;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #4a5568;">
+                            <th style="padding: 0.5rem 0.75rem; text-align: left;">Invoice Number</th>
+                            <th style="padding: 0.5rem 0.75rem; text-align: left;">Date</th>
+                            <th style="padding: 0.5rem 0.75rem; text-align: right;">Amount (₹)</th>
+                            <th style="padding: 0.5rem 0.75rem; text-align: left;">Cancellation Remarks</th>
+                            <th style="padding: 0.5rem 0.75rem; text-align: center;">PDF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cinv in cancelled_service_invoices %}
+                            <tr style="border-bottom: 1px solid #edf2f7; color: #718096;">
+                                <td style="padding: 0.5rem 0.75rem; font-weight: 600;">{{ cinv.invoice_number }}</td>
+                                <td style="padding: 0.5rem 0.75rem;">{{ cinv.invoice_date|date:"d M Y" }}</td>
+                                <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: monospace;">₹{{ cinv.total_amount|floatformat:2 }}</td>
+                                <td style="padding: 0.5rem 0.75rem; white-space: pre-line;">{{ cinv.remarks }}</td>
+                                <td style="padding: 0.5rem 0.75rem; text-align: center;">
+                                    <a href="/claims/{{ claim.id }}/billing/pdf/?invoice_id={{ cinv.id }}" target="_blank" style="color: #2b6cb0; text-decoration: none;">📄 PDF</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+
+        <!-- Modal: Cancel Invoice (Requires reason) -->
+        <div id="modal-cancel-invoice" style="display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+            <div style="background:#fff; border-radius:12px; padding:1.75rem; width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+                <h3 style="margin:0 0 0.5rem; font-size:1.1rem; font-weight:700; color:#c53030;">❌ Cancel Invoice</h3>
+                <p style="font-size:0.85rem; color:#4a5568; margin:0 0 1rem; line-height:1.4;">
+                    Please provide a reason for cancelling invoice <strong>{{ service_invoice.invoice_number }}</strong>. The cancellation reason will be recorded permanently in the invoice remarks.
+                </p>
+                <form method="post" action="/claims/{{ claim.id }}/billing/cancel/">
+                    {% csrf_token %}
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.25rem;">
+                            Cancellation Reason <span style="color:#e53e3e;">*</span>
+                        </label>
+                        <textarea name="reason" rows="3" required placeholder="Specify why this invoice is being cancelled..." class="form-control" style="font-size:0.85rem;"></textarea>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" onclick="document.getElementById('modal-cancel-invoice').style.display='none'" class="btn btn-outline" style="font-size:0.825rem;">Cancel</button>
+                        <button type="submit" class="btn btn-danger" style="font-size:0.825rem;">Confirm Cancellation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: Record Payment -->
+        <div id="modal-payment-invoice" style="display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+            <div style="background:#fff; border-radius:12px; padding:1.75rem; width:100%; max-width:440px; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+                <h3 style="margin:0 0 0.5rem; font-size:1.1rem; font-weight:700; color:#047857;">💳 Record Invoice Payment</h3>
+                <p style="font-size:0.85rem; color:#4a5568; margin:0 0 1rem; line-height:1.4;">
+                    Record payment received for invoice <strong>{{ service_invoice.invoice_number }}</strong> of <strong>₹{{ service_invoice.total_amount }}</strong>.
+                </p>
+                <form method="post" action="/claims/{{ claim.id }}/billing/record-payment/">
+                    {% csrf_token %}
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.25rem;">
+                            Payment Reference / UTR Number
+                        </label>
+                        <input type="text" name="payment_reference" placeholder="e.g. NEFT-1234567890 / Chq #442211" class="form-control" style="font-size:0.85rem;">
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" onclick="document.getElementById('modal-payment-invoice').style.display='none'" class="btn btn-outline" style="font-size:0.825rem;">Cancel</button>
+                        <button type="submit" class="btn" style="background:#047857; color:#fff; font-size:0.825rem;">Confirm Payment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+
 </div>
 
 {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
+{% if claim.latest_submitted_report and claim.latest_submitted_report.status == 'SUBMITTED' %}
 <!-- Approve & Close Claim Modal -->
 <div id="modal-approve-close"
      style="display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
@@ -1685,6 +2144,7 @@ document.getElementById('modal-approve-close').addEventListener('click', functio
     if (e.target === this) this.style.display = 'none';
 });
 </script>
+{% endif %}
 {% endif %}
 
 {% endblock content %}

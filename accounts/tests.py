@@ -37,11 +37,24 @@ class RootViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_header_links_hidden(self):
-        response = self.client.get('/login/')
+        admin = User.objects.create_user(
+            username='admin_test_hdr',
+            email='admin_hdr@test.com',
+            password='password123',
+            role=User.Role.ADMIN
+        )
+        self.client.force_login(admin)
+        response = self.client.get('/dashboard/admin/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<li style="display: none;"><a href="/dashboard/admin/">Admin Portal</a></li>', html=True)
         self.assertContains(response, '<li style="display: none;"><a href="/api/docs/">API Docs</a></li>', html=True)
         self.assertContains(response, '<li style="display: none;"><a href="/admin/">Django Admin</a></li>', html=True)
+
+    def test_login_page_has_no_navbar(self):
+        response = self.client.get('/login/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '<header class="site-header">')
+        self.assertNotContains(response, '<nav class="navbar">')
 
 
 class AccountsModelTests(TestCase):

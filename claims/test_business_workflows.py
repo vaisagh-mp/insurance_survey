@@ -1159,6 +1159,45 @@ class ClaimApproveAndCloseTests(BaseWorkflowTestCase):
         fsr.refresh_from_db()
         self.assertEqual(fsr.status, ReportStatus.FINAL)
 
+    def test_approve_close_button_not_shown_when_no_submitted_report(self):
+        """Approve and Close Claim button must NOT be rendered if no submitted report exists."""
+        # 1. Claim in NEW status -> button not shown
+        self.client.force_login(self.admin)
+        resp = self.client.get(f"/claims/{self.claim.pk}/")
+        self.assertNotContains(resp, "btn-approve-close")
+
+        # 2. Claim in FSR_PREPARED but no submitted report -> button not shown
+        from claims.models import Claim
+        Claim.objects.filter(pk=self.claim.pk).update(status=ClaimStatus.FSR_PREPARED)
+        resp = self.client.get(f"/claims/{self.claim.pk}/")
+        self.assertNotContains(resp, "btn-approve-close")
+
+        # 3. Once report is SUBMITTED -> button IS shown to Admin
+        self._make_fsr_submitted()
+        resp = self.client.get(f"/claims/{self.claim.pk}/")
+        self.assertContains(resp, "btn-approve-close")
+
+    def test_atomic_rollback_on_close_claim_failure(self):
+        """If close_claim raises an error, the report must NOT remain FINAL due to atomic rollback."""
+        fsr = self._make_fsr_submitted()
+        self.client.force_login(self.admin)
+        from unittest.mock import patch
+        from django.core.exceptions import ValidationError
+        with patch("claims.web_views.close_claim", side_effect=ValidationError("Simulated close failure")):
+            response = self.client.post(
+                f"/claims/{self.claim.pk}/approve-and-close/",
+                {"remarks": "Will fail inside close_claim"},
+                follow=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.claim.refresh_from_db()
+        self.assertNotEqual(self.claim.status, ClaimStatus.CLOSED)
+        fsr.refresh_from_db()
+        # Verify rollback: status must still be SUBMITTED, not FINAL!
+        self.assertEqual(fsr.status, ReportStatus.SUBMITTED)
+        msgs = [m.message for m in response.context["messages"]]
+        self.assertTrue(any("Simulated close failure" in m for m in msgs))
+
     def test_skip_ahead_fsr_instruction_details_not_blank(self):
         """
         Skip-ahead path: INSPECTION_COMPLETED -> FSR_PREPARED (no ILA ever created).

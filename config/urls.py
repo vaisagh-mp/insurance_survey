@@ -27,6 +27,7 @@ urlpatterns = [
 
     # Admin Web Portal (HTML Views)
     path('', include('claims.web_urls')),
+    path('', include('billing.urls')),
 
     # Authentication Endpoints
     path('api/auth/', include('accounts.urls')),

@@ -10,6 +10,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    {% block header %}
     <header class="site-header">
         <nav class="navbar">
             <div class="nav-left">
@@ -43,6 +44,7 @@
             </ul>
         </nav>
     </header>
+    {% endblock header %}
 
     {% block layout %}
     <div class="admin-layout">
@@ -71,7 +73,7 @@
                     </button>
                 </div>
             </div>
-            {% if request.user.role == 'SURVEYOR' %}
+            {% if request.user.role == 'SURVEYOR' and not request.user.is_superuser %}
                 <div>
                     <div class="sidebar-heading">Surveyor Portal</div>
                     <ul class="sidebar-menu">
@@ -127,6 +129,7 @@
                     <ul class="sidebar-menu">
                         <li><a href="/documents/">📄 Claim Documents</a></li>
                         <li><a href="/reports/">📑 Survey Reports</a></li>
+                        <li><a href="/billing/">💰 Fee Invoices</a></li>
                     </ul>
                 </div>
 
