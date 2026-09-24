@@ -23,9 +23,22 @@ environ.Env.read_env(BASE_DIR / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-SECRET_KEY = env('SECRET_KEY', default='7k6tx0n6rgax+c^zl5%x0-yoi!ls#6xkq3$s&g-jmiqa+f1k^i')
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-dev-key-change-in-prod-survey-system')
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+ALLOWED_HOSTS = env.list(
+    'ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1', 'insurance-survey-3anl.onrender.com', '.onrender.com']
+)
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    'CSRF_TRUSTED_ORIGINS',
+    default=[
+        'https://insurance-survey-3anl.onrender.com',
+        'https://*.onrender.com',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
+)
 
 
 # Application definition
