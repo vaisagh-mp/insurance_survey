@@ -29,7 +29,7 @@ CSRF_TRUSTED_ORIGINS = env.list(
 DATABASES = {
     'default': env.db(
         'DATABASE_URL',
-        default='postgres://postgres:admin@localhost:5432/insurance_survey_db'
+        default='postgres://insurance_user:soteriais@localhost:5432/insurance_survey_db'
     )
 }
 
