@@ -1,3 +1,5 @@
+import json
+import base64
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
@@ -6,7 +8,10 @@ from django.contrib import messages
 from django.contrib.auth import login as auth_login, logout as auth_logout, get_user_model
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.http import JsonResponse
+from django.core.files.base import ContentFile
 
+from config.concurrency import check_optimistic_concurrency
 from accounts.forms import WebLoginForm, SurveyorCreateForm, SurveyorUpdateForm
 from accounts.models import SurveyorProfile
 from claims.models import Claim, ClaimStatus, Insurer, Insured, Policy, SurveyAssignment
@@ -35,8 +40,12 @@ def admin_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         if not request.user.is_authenticated:
+            if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
+                return JsonResponse({'detail': 'Authentication required'}, status=401)
             return redirect(f"/login/?next={request.path}")
         if request.user.role != User.Role.ADMIN and not request.user.is_superuser:
+            if 'application/json' in request.headers.get('Accept', '') or request.content_type == 'application/json':
+                return JsonResponse({'detail': 'Administrator privileges are required to access this section.', 'code': 'forbidden'}, status=403)
             raise PermissionDenied("Administrator privileges are required to access this section.")
         return view_func(request, *args, **kwargs)
     return _wrapped_view
@@ -47,8 +56,12 @@ def surveyor_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         if not request.user.is_authenticated:
+            if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
+                return JsonResponse({'detail': 'Authentication required'}, status=401)
             return redirect(f"/login/?next={request.path}")
         if request.user.role != User.Role.SURVEYOR and not request.user.is_superuser:
+            if 'application/json' in request.headers.get('Accept', '') or request.content_type == 'application/json':
+                return JsonResponse({'detail': 'Surveyor privileges are required to access this section.', 'code': 'forbidden'}, status=403)
             raise PermissionDenied("Surveyor privileges are required to access this section.")
         return view_func(request, *args, **kwargs)
     return _wrapped_view
@@ -500,43 +513,81 @@ def claim_detail(request, pk):
 def claim_assign_surveyor(request, pk):
     """Admin endpoint to assign or reassign a surveyor to a claim from the web portal."""
     claim = get_object_or_404(Claim, pk=pk)
-    if request.method == 'POST':
-        surveyor_id = request.POST.get('surveyor')
-        due_date = request.POST.get('due_date') or None
-        instructions = request.POST.get('instructions', '').strip()
-        priority = request.POST.get('priority', claim.priority)
-        remarks = request.POST.get('remarks', '').strip()
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-        if not surveyor_id:
-            messages.error(request, "Please select a surveyor to assign.")
-            return redirect(f'/claims/{claim.id}/?tab=assignment')
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f'/claims/{claim.id}/?tab=assignment')
 
-        surveyor = get_object_or_404(User, pk=surveyor_id, role=User.Role.SURVEYOR)
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
 
-        if claim.active_assignment:
-            reassign_surveyor(
-                claim=claim,
-                new_surveyor=surveyor,
-                assigned_by=request.user,
-                due_date=due_date,
-                instructions=instructions,
-                priority=priority,
-                remarks=remarks or f"Reassigned to {surveyor.get_full_name() or surveyor.username}",
-                request=request
-            )
-            messages.success(request, f"Claim {claim.claim_number} successfully reassigned to {surveyor.get_full_name() or surveyor.username}.")
-        else:
-            assign_surveyor(
-                claim=claim,
-                surveyor=surveyor,
-                assigned_by=request.user,
-                due_date=due_date,
-                instructions=instructions,
-                priority=priority,
-                request=request
-            )
-            messages.success(request, f"Claim {claim.claim_number} successfully assigned to {surveyor.get_full_name() or surveyor.username}.")
+    conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
 
+    surveyor_id = data.get('surveyor') or data.get('surveyor_id')
+    due_date = data.get('due_date') or None
+    instructions = (data.get('instructions') or '').strip()
+    priority = data.get('priority') or claim.priority
+    remarks = (data.get('remarks') or '').strip()
+
+    if not surveyor_id:
+        if is_json:
+            return JsonResponse({'detail': 'Please select a surveyor to assign.', 'errors': {'surveyor': 'This field is required.'}}, status=400)
+        messages.error(request, "Please select a surveyor to assign.")
+        return redirect(f'/claims/{claim.id}/?tab=assignment')
+
+    try:
+        surveyor = User.objects.get(pk=surveyor_id, role=User.Role.SURVEYOR)
+    except (User.DoesNotExist, ValueError):
+        if is_json:
+            return JsonResponse({'detail': 'Surveyor not found or invalid.', 'errors': {'surveyor': 'Invalid surveyor choice.'}}, status=400)
+        messages.error(request, "Surveyor not found.")
+        return redirect(f'/claims/{claim.id}/?tab=assignment')
+
+    action = 'reassigned' if claim.active_assignment else 'assigned'
+    if claim.active_assignment:
+        reassign_surveyor(
+            claim=claim,
+            new_surveyor=surveyor,
+            assigned_by=request.user,
+            due_date=due_date,
+            instructions=instructions,
+            priority=priority,
+            remarks=remarks or f"Reassigned to {surveyor.get_full_name() or surveyor.username}",
+            request=request
+        )
+        msg = f"Claim {claim.claim_number} successfully reassigned to {surveyor.get_full_name() or surveyor.username}."
+    else:
+        assign_surveyor(
+            claim=claim,
+            surveyor=surveyor,
+            assigned_by=request.user,
+            due_date=due_date,
+            instructions=instructions,
+            priority=priority,
+            request=request
+        )
+        msg = f"Claim {claim.claim_number} successfully assigned to {surveyor.get_full_name() or surveyor.username}."
+
+    if is_json:
+        return JsonResponse({
+            'status': 'success',
+            'id': claim.id,
+            'action': action,
+            'surveyor_id': surveyor.id,
+            'surveyor_name': surveyor.get_full_name() or surveyor.username,
+            'message': msg
+        }, status=200)
+
+    messages.success(request, msg)
     return redirect(f'/claims/{claim.id}/?tab=assignment')
 
 
@@ -550,8 +601,7 @@ def claim_create(request):
     With dynamic survey-type-specific detail panel (FIRE, ENG, MARINE, PROPERTY).
     Server decides authoritative survey type and validates only the matching detail form.
     """
-    from django.db import transaction
-    import json
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
     survey_types = SurveyType.objects.filter(is_active=True)
     insurers = Insurer.objects.filter(is_active=True).order_by('company_name')
@@ -564,8 +614,19 @@ def claim_create(request):
     }
 
     if request.method == 'POST':
-        claim_form = ClaimCreateForm(request.POST)
-        survey_type_id = request.POST.get('survey_type')
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            claim_form = ClaimCreateForm(data)
+            survey_type_id = data.get('survey_type')
+            post_dict = data
+        else:
+            claim_form = ClaimCreateForm(request.POST)
+            survey_type_id = request.POST.get('survey_type')
+            post_dict = request.POST
+
         selected_st = SurveyType.objects.filter(id=survey_type_id).first() if survey_type_id else None
         st_code = selected_st.code.upper() if selected_st else ""
 
@@ -585,17 +646,17 @@ def claim_create(request):
             form_cls, prefix = detail_form_map[st_code]
             has_prefixed_data = any(
                 k.startswith(f"{prefix}-") and bool(str(v).strip())
-                for k, v in request.POST.items()
+                for k, v in post_dict.items()
             )
             has_unprefixed_data = any(
                 k in form_cls.base_fields and bool(str(v).strip())
-                for k, v in request.POST.items()
+                for k, v in post_dict.items()
             )
 
             if has_prefixed_data:
-                detail_form = form_cls(request.POST, prefix=prefix)
+                detail_form = form_cls(post_dict, prefix=prefix)
             elif has_unprefixed_data:
-                detail_form = form_cls(request.POST)
+                detail_form = form_cls(post_dict)
 
         is_claim_valid = claim_form.is_valid()
         is_detail_valid = detail_form.is_valid() if detail_form else True
@@ -611,9 +672,22 @@ def claim_create(request):
                     detail_instance.claim = claim
                     detail_instance.save()
 
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': claim.id,
+                    'claim_number': claim.claim_number,
+                    'message': f"Claim {claim.claim_number} created successfully!"
+                }, status=201)
+
             messages.success(request, f"Claim {claim.claim_number} created successfully!")
             return redirect(f'/claims/{claim.id}/')
         else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in claim_form.errors.items()}
+                if detail_form and detail_form.errors:
+                    errors.update({f"detail_{k}": v.as_text() for k, v in detail_form.errors.items()})
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
             messages.error(request, "Please correct the errors in the form before submitting.")
     else:
         claim_form = ClaimCreateForm()
@@ -637,6 +711,7 @@ def claim_create(request):
     return render(request, 'claims/claim_form.html', context)
 
 
+
 # --- Surveyor Tab Action Endpoints ---
 
 def _get_claim_for_surveyor(request, pk):
@@ -656,16 +731,104 @@ def _get_claim_for_surveyor(request, pk):
 @surveyor_required
 def claim_inspection_save(request, pk):
     """Surveyor saves or updates an inspection with observations and multi-file attachments."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
+
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=inspection')
 
     claim = _get_claim_for_surveyor(request, pk)
+
+    # 1. JSON Outbox Replay Path
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+
+        inspection_id = data.get('inspection_id')
+        instance = get_object_or_404(Inspection, pk=inspection_id, claim=claim) if inspection_id else None
+
+        conflict = check_optimistic_concurrency(instance or claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+
+        form = InspectionForm(data, instance=instance)
+        if form.is_valid():
+            with transaction.atomic():
+                inspection = form.save(commit=False)
+                inspection.claim = claim
+                inspection.surveyor = request.user
+                inspection.save()
+
+                # Save base64-encoded photos
+                photos_data = data.get('photos') or []
+                for p in photos_data:
+                    p_file_data = p.get('file_data') or p.get('dataUrl') or ''
+                    if p_file_data:
+                        if ',' in p_file_data:
+                            p_file_data = p_file_data.split(',', 1)[1]
+                        p_name = p.get('file_name') or p.get('name') or 'photo.jpg'
+                        p_caption = p.get('caption') or p_name
+                        p_file = ContentFile(base64.b64decode(p_file_data), name=p_name)
+                        InspectionPhoto.objects.create(
+                            inspection=inspection,
+                            image=p_file,
+                            uploaded_by=request.user,
+                            caption=p_caption
+                        )
+
+                # Save base64-encoded documents
+                docs_data = data.get('documents') or []
+                if docs_data:
+                    doc_type, _ = DocumentType.objects.get_or_create(
+                        code='INSP_DOC',
+                        defaults={'name': 'Inspection Document', 'is_active': True}
+                    )
+                    for d in docs_data:
+                        d_file_data = d.get('file_data') or d.get('dataUrl') or ''
+                        if d_file_data:
+                            if ',' in d_file_data:
+                                d_file_data = d_file_data.split(',', 1)[1]
+                            d_name = d.get('file_name') or d.get('name') or 'doc.pdf'
+                            d_desc = d.get('description') or f"Inspection attachment ({d_name})"
+                            d_file = ContentFile(base64.b64decode(d_file_data), name=d_name)
+                            ClaimDocument.objects.create(
+                                claim=claim,
+                                document_type=doc_type,
+                                file=d_file,
+                                description=d_desc,
+                                uploaded_by=request.user
+                            )
+
+                # Advance status if appropriate
+                if inspection.status == Inspection.Status.COMPLETED and claim.status in [ClaimStatus.ASSIGNED, ClaimStatus.INSPECTION_PENDING]:
+                    transition_claim_status(claim, ClaimStatus.INSPECTION_COMPLETED, request.user, remarks="On-site inspection completed", request=request)
+                elif inspection.status == Inspection.Status.SCHEDULED and claim.status == ClaimStatus.ASSIGNED:
+                    transition_claim_status(claim, ClaimStatus.INSPECTION_PENDING, request.user, remarks="Inspection visit scheduled", request=request)
+
+            status_code = 200 if instance else 201
+            return JsonResponse({
+                'status': 'success',
+                'id': inspection.id,
+                'claim_id': claim.id,
+                'message': 'Inspection details and files saved successfully.'
+            }, status=status_code)
+        else:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
+
+    # 2. Multipart Form Path
     inspection_id = request.POST.get('inspection_id')
     instance = get_object_or_404(Inspection, pk=inspection_id, claim=claim) if inspection_id else None
 
+    conflict = check_optimistic_concurrency(instance or claim, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
     form = InspectionForm(request.POST, request.FILES, instance=instance)
     if form.is_valid():
-        from django.db import transaction
         with transaction.atomic():
             inspection = form.save(commit=False)
             inspection.claim = claim
@@ -704,8 +867,20 @@ def claim_inspection_save(request, pk):
             elif inspection.status == Inspection.Status.SCHEDULED and claim.status == ClaimStatus.ASSIGNED:
                 transition_claim_status(claim, ClaimStatus.INSPECTION_PENDING, request.user, remarks="Inspection visit scheduled", request=request)
 
+        if 'application/json' in request.headers.get('Accept', ''):
+            status_code = 200 if instance else 201
+            return JsonResponse({
+                'status': 'success',
+                'id': inspection.id,
+                'claim_id': claim.id,
+                'message': 'Inspection details and files saved successfully.'
+            }, status=status_code)
+
         messages.success(request, "Inspection details and files saved successfully!")
     else:
+        if 'application/json' in request.headers.get('Accept', ''):
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         for err in form.errors.values():
             messages.error(request, err.as_text())
 
@@ -715,11 +890,29 @@ def claim_inspection_save(request, pk):
 @surveyor_required
 def claim_lor_add(request, pk):
     """Surveyor adds a new LOR Requirement."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=lor')
 
     claim = _get_claim_for_surveyor(request, pk)
-    form = RequirementForm(request.POST, claim=claim)
+
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+        conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+        form = RequirementForm(data, claim=claim)
+    else:
+        conflict = check_optimistic_concurrency(claim, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+        form = RequirementForm(request.POST, claim=claim)
+
     if form.is_valid():
         req = form.save(commit=False)
         req.claim = claim
@@ -730,8 +923,19 @@ def claim_lor_add(request, pk):
         if claim.status in [ClaimStatus.ILA_PREPARED, ClaimStatus.REPORT_SUBMITTED, ClaimStatus.INSPECTION_COMPLETED]:
             transition_claim_status(claim, ClaimStatus.LOR_ISSUED, request.user, remarks=f"LOR item requested: {req.description[:30]}", request=request)
 
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': req.id,
+                'description': req.description,
+                'message': 'Requirement added to LOR successfully.'
+            }, status=201)
+
         messages.success(request, "Requirement added to LOR successfully.")
     else:
+        if is_json:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         messages.error(request, "Failed to add requirement. Please check input fields.")
 
     return redirect(f'/claims/{pk}/?tab=lor')
@@ -739,17 +943,40 @@ def claim_lor_add(request, pk):
 
 def claim_lor_update_status(request, pk, req_id):
     """Updates requirement status inline. Verification status change requires Administrator role."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if not request.user.is_authenticated:
+        if is_json:
+            return JsonResponse({'detail': 'Authentication required'}, status=401)
         return redirect(f"/login/?next={request.path}")
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=lor')
 
     claim = _get_claim_for_surveyor(request, pk)
     req = get_object_or_404(Requirement, pk=req_id, claim=claim)
-    new_status = request.POST.get('status')
 
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(req, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    new_status = data.get('status')
     is_admin = request.user.role == User.Role.ADMIN or request.user.is_superuser
+
     if (new_status == Requirement.Status.VERIFIED or req.status == Requirement.Status.VERIFIED) and not is_admin:
+        if is_json:
+            return JsonResponse({
+                'detail': 'To change verification status, the logged-in user must be an Administrator.',
+                'code': 'forbidden'
+            }, status=403)
         messages.error(request, "To change verification status, the logged-in user must be an Administrator.")
         return redirect(f'/claims/{pk}/?tab=lor')
 
@@ -759,7 +986,19 @@ def claim_lor_update_status(request, pk, req_id):
             from django.utils import timezone
             req.received_date = timezone.localdate()
         req.save()
+
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': req.id,
+                'new_status': req.status,
+                'message': f"Requirement status updated to {req.get_status_display()}."
+            }, status=200)
+
         messages.success(request, f"Requirement status updated to {req.get_status_display()}.")
+    else:
+        if is_json:
+            return JsonResponse({'detail': 'Invalid status choice', 'errors': {'status': 'Invalid status choice'}}, status=400)
 
     return redirect(f'/claims/{pk}/?tab=lor')
 
@@ -767,55 +1006,210 @@ def claim_lor_update_status(request, pk, req_id):
 @admin_required
 def claim_document_verify(request, pk, doc_id):
     """Marks a ClaimDocument as verified by an Administrator."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=documents')
 
     claim = get_object_or_404(Claim, pk=pk)
     doc = get_object_or_404(ClaimDocument, pk=doc_id, claim=claim)
+
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(doc, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
     from documents.services import verify_claim_document
-    verify_claim_document(doc, verified_by=request.user, remarks=request.POST.get('remarks', ''))
+    remarks = (data.get('remarks') or '').strip()
+    verify_claim_document(doc, verified_by=request.user, remarks=remarks)
+
+    if is_json:
+        return JsonResponse({
+            'status': 'success',
+            'id': doc.id,
+            'verified': True,
+            'message': f"Document '{doc.document_type.name}' verified successfully!"
+        }, status=200)
+
     messages.success(request, f"Document '{doc.document_type.name}' verified successfully!")
     return redirect(f'/claims/{pk}/?tab=documents')
 
 
 def claim_document_upload(request, pk):
     """Upload a ClaimDocument with Ref Number, Date, Type, and File."""
+    is_json = request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json'
     if not request.user.is_authenticated:
+        if is_json:
+            return JsonResponse({'detail': 'Authentication required'}, status=401)
         return redirect(f"/login/?next={request.path}")
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=documents')
 
     claim = _get_claim_for_surveyor(request, pk)
+
+    # Check for JSON payload from offline sync outbox replay
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+            conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+
+            doc_type_id = data.get('document_type')
+            doc_number = data.get('document_number', '')
+            doc_date = data.get('document_date') or None
+            description = data.get('description', '')
+            file_name = data.get('file_name', 'document.bin')
+            file_data = data.get('file_data', '')
+
+            if not file_data:
+                return JsonResponse({'detail': 'File data is required'}, status=400)
+
+            if ',' in file_data:
+                file_data = file_data.split(',', 1)[1]
+            file_bytes = base64.b64decode(file_data)
+            content_file = ContentFile(file_bytes, name=file_name)
+
+            doc_type = DocumentType.objects.get(pk=doc_type_id)
+            doc = ClaimDocument.objects.create(
+                claim=claim,
+                document_type=doc_type,
+                document_number=doc_number,
+                document_date=doc_date,
+                description=description,
+                file=content_file,
+                uploaded_by=request.user
+            )
+            return JsonResponse({
+                'status': 'success',
+                'id': doc.id,
+                'document_type': doc_type.name,
+                'message': f"Document '{doc_type.name}' uploaded successfully."
+            }, status=201)
+        except Exception as e:
+            return JsonResponse({'detail': str(e)}, status=400)
+
+    conflict = check_optimistic_concurrency(claim, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
     form = ClaimDocumentForm(request.POST, request.FILES)
     if form.is_valid():
         doc = form.save(commit=False)
         doc.claim = claim
         doc.uploaded_by = request.user
         doc.save()
+
+        if 'application/json' in request.headers.get('Accept', ''):
+            return JsonResponse({
+                'status': 'success',
+                'id': doc.id,
+                'document_type': doc.document_type.name,
+                'message': f"Document '{doc.document_type.name}' uploaded successfully."
+            }, status=201)
+
         messages.success(request, f"Document '{doc.document_type.name}' uploaded successfully.")
     else:
+        if 'application/json' in request.headers.get('Accept', ''):
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         for err in form.errors.values():
             messages.error(request, err.as_text())
 
     return redirect(f'/claims/{pk}/?tab=documents')
 
 
+
 def claim_invoice_add(request, pk):
     """Surveyor or Admin adds a repair/replacement loss invoice for the claim."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if not request.user.is_authenticated:
+        if is_json:
+            return JsonResponse({'detail': 'Authentication required'}, status=401)
         return redirect(f"/login/?next={request.path}")
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=invoices')
 
     claim = _get_claim_for_surveyor(request, pk)
+
+    # 1. JSON Outbox Replay Path
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+
+        conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+
+        file_dict = None
+        file_data = data.get('file_data') or data.get('dataUrl') or ''
+        if file_data:
+            if ',' in file_data:
+                file_data = file_data.split(',', 1)[1]
+            file_name = data.get('file_name') or data.get('name') or 'invoice.pdf'
+            file_dict = {'document': ContentFile(base64.b64decode(file_data), name=file_name)}
+
+        form = InvoiceForm(data, file_dict)
+        if form.is_valid():
+            inv = form.save(commit=False)
+            inv.claim = claim
+            from decimal import Decimal
+            inv.total_amount = (inv.amount or Decimal('0.00')) + (inv.tax_amount or Decimal('0.00'))
+            inv.save()
+            return JsonResponse({
+                'status': 'success',
+                'id': inv.id,
+                'invoice_number': inv.invoice_number,
+                'vendor_name': inv.vendor_name,
+                'total_amount': str(inv.total_amount),
+                'message': f"Repair invoice #{inv.invoice_number} from '{inv.vendor_name}' added successfully."
+            }, status=201)
+        else:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
+
+    # 2. Form Path
+    conflict = check_optimistic_concurrency(claim, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
     form = InvoiceForm(request.POST, request.FILES)
     if form.is_valid():
         inv = form.save(commit=False)
         inv.claim = claim
+        from decimal import Decimal
         inv.total_amount = (inv.amount or Decimal('0.00')) + (inv.tax_amount or Decimal('0.00'))
         inv.save()
+
+        if 'application/json' in request.headers.get('Accept', ''):
+            return JsonResponse({
+                'status': 'success',
+                'id': inv.id,
+                'invoice_number': inv.invoice_number,
+                'vendor_name': inv.vendor_name,
+                'total_amount': str(inv.total_amount),
+                'message': f"Repair invoice #{inv.invoice_number} from '{inv.vendor_name}' added successfully."
+            }, status=201)
+
         messages.success(request, f"Repair invoice #{inv.invoice_number} from '{inv.vendor_name}' added successfully.")
     else:
+        if 'application/json' in request.headers.get('Accept', ''):
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         for field, errors in form.errors.items():
             for err in errors:
                 messages.error(request, f"{field.replace('_', ' ').capitalize()}: {err}")
@@ -840,17 +1234,44 @@ def claim_invoice_delete(request, pk, inv_id):
 
 def claim_invoice_verify(request, pk, inv_id):
     """Admin or Surveyor toggles verification status of a repair invoice."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if not request.user.is_authenticated:
+        if is_json:
+            return JsonResponse({'detail': 'Authentication required'}, status=401)
         return redirect(f"/login/?next={request.path}")
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=invoices')
 
     claim = _get_claim_for_surveyor(request, pk)
     inv = get_object_or_404(Invoice, pk=inv_id, claim=claim)
+
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(inv, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
     inv.verified = not inv.verified
     inv.verified_by = request.user if inv.verified else None
     inv.save(update_fields=['verified', 'verified_by', 'updated_at'])
     status_str = "verified" if inv.verified else "marked as pending"
+
+    if is_json:
+        return JsonResponse({
+            'status': 'success',
+            'id': inv.id,
+            'verified': inv.verified,
+            'message': f"Repair invoice #{inv.invoice_number} {status_str}."
+        }, status=200)
+
     messages.success(request, f"Repair invoice #{inv.invoice_number} {status_str}.")
     return redirect(f'/claims/{pk}/?tab=invoices')
 
@@ -858,13 +1279,28 @@ def claim_invoice_verify(request, pk, inv_id):
 @surveyor_required
 def claim_assessment_save(request, pk):
     """Surveyor updates financial parameters of Assessment and triggers recalculation."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=assessment')
 
     claim = _get_claim_for_surveyor(request, pk)
     assessment, _ = Assessment.objects.get_or_create(claim=claim, defaults={'created_by': request.user})
 
-    form = AssessmentFinancialForm(request.POST, instance=assessment)
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(assessment, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    form = AssessmentFinancialForm(data, instance=assessment)
     if form.is_valid():
         assessment = form.save()
         recalculate_assessment(assessment)
@@ -873,8 +1309,20 @@ def claim_assessment_save(request, pk):
         if claim.status in [ClaimStatus.LOR_ISSUED, ClaimStatus.DOCUMENT_COLLECTION, ClaimStatus.REPORT_SUBMITTED, ClaimStatus.INSPECTION_COMPLETED, ClaimStatus.ILA_PREPARED]:
             transition_claim_status(claim, ClaimStatus.ASSESSMENT_IN_PROGRESS, request.user, remarks="Financial assessment parameters updated", request=request)
 
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': assessment.id,
+                'gross_loss': str(assessment.gross_assessed_loss),
+                'net_assessed_loss': str(assessment.net_assessed_loss),
+                'message': 'Financial assessment updated and recalculated successfully.'
+            }, status=200)
+
         messages.success(request, "Financial assessment updated and recalculated successfully.")
     else:
+        if is_json:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         messages.error(request, "Error updating assessment figures.")
 
     return redirect(f'/claims/{pk}/?tab=assessment')
@@ -883,13 +1331,28 @@ def claim_assessment_save(request, pk):
 @surveyor_required
 def claim_assessment_item_add(request, pk):
     """Surveyor adds an Assessment line item; server recomputes totals."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=assessment')
 
     claim = _get_claim_for_surveyor(request, pk)
     assessment, _ = Assessment.objects.get_or_create(claim=claim, defaults={'created_by': request.user})
 
-    form = AssessmentItemForm(request.POST)
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(assessment, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    form = AssessmentItemForm(data)
     if form.is_valid():
         item = form.save(commit=False)
         item.assessment = assessment
@@ -897,8 +1360,21 @@ def claim_assessment_item_add(request, pk):
         recalculate_assessment(assessment)
         if claim.status in [ClaimStatus.LOR_ISSUED, ClaimStatus.DOCUMENT_COLLECTION, ClaimStatus.REPORT_SUBMITTED, ClaimStatus.INSPECTION_COMPLETED, ClaimStatus.ILA_PREPARED]:
             transition_claim_status(claim, ClaimStatus.ASSESSMENT_IN_PROGRESS, request.user, remarks="Financial assessment item added", request=request)
+
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': item.id,
+                'description': item.description,
+                'total_assessed': str(item.assessed_amount),
+                'message': f"Item '{item.description}' added to assessment."
+            }, status=201)
+
         messages.success(request, f"Item '{item.description}' added to assessment.")
     else:
+        if is_json:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         messages.error(request, "Failed to add assessment item. Please check quantity and rate.")
 
     return redirect(f'/claims/{pk}/?tab=assessment')
@@ -907,25 +1383,57 @@ def claim_assessment_item_add(request, pk):
 @surveyor_required
 def claim_assessment_item_edit(request, pk, item_id):
     """Surveyor updates an existing Assessment line item; server recomputes totals."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=assessment')
 
     claim = _get_claim_for_surveyor(request, pk)
     if not hasattr(claim, 'assessment'):
+        if is_json:
+            return JsonResponse({'detail': 'Assessment not found', 'code': 'not_found'}, status=404)
         messages.error(request, "Assessment not found.")
         return redirect(f'/claims/{pk}/?tab=assessment')
 
     item = get_object_or_404(AssessmentItem, pk=item_id, assessment=claim.assessment)
-    form = AssessmentItemForm(request.POST, instance=item)
+
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(item.assessment, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    form = AssessmentItemForm(data, instance=item)
     if form.is_valid():
         form.save()
         recalculate_assessment(claim.assessment)
+
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': item.id,
+                'description': item.description,
+                'total_assessed': str(item.assessed_amount),
+                'message': f"Assessment item '{item.description}' updated."
+            }, status=200)
+
         messages.success(request, f"Assessment item '{item.description}' updated.")
     else:
+        if is_json:
+            errors = {k: v.as_text() for k, v in form.errors.items()}
+            return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
         for err in form.errors.values():
             messages.error(request, err.as_text())
 
     return redirect(f'/claims/{pk}/?tab=assessment')
+
 
 
 @surveyor_required
@@ -947,15 +1455,30 @@ def claim_assessment_item_delete(request, pk, item_id):
 @surveyor_required
 def claim_report_save(request, pk, report_type):
     """Surveyor saves or updates draft of ILA, ISR, or FSR."""
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab={report_type}')
 
     claim = _get_claim_for_surveyor(request, pk)
     report_type = report_type.lower()
 
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+        post_data = data
+    else:
+        post_data = request.POST.copy()
+
     if report_type == 'ila':
         existing = claim.ila_reports.order_by('-version_number').first()
-        post_data = request.POST.copy()
+        conflict = check_optimistic_concurrency(existing, base_updated_at=post_data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+
         if not post_data.get('policy_number'):
             post_data['policy_number'] = claim.policy.policy_number
         if not post_data.get('policy_type'):
@@ -987,24 +1510,41 @@ def claim_report_save(request, pk, report_type):
             ila.surveyor = request.user
             ila.status = ReportStatus.DRAFT
             ila.save()
-            # If claim was at INSPECTION_COMPLETED, transition to ILA_PREPARED
             if claim.status == ClaimStatus.INSPECTION_COMPLETED:
                 transition_claim_status(claim, ClaimStatus.ILA_PREPARED, request.user, remarks="ILA draft prepared", request=request)
+
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': ila.id,
+                    'report_number': ila.report_number,
+                    'report_type': 'ILA',
+                    'message': 'Immediate Loss Advice (ILA) saved as draft.'
+                }, status=200 if existing else 201)
+
             messages.success(request, "Immediate Loss Advice (ILA) saved as draft.")
         else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
             for field, errors in form.errors.items():
                 for err in errors:
                     messages.error(request, f"{field.replace('_', ' ').title()}: {err}")
 
     elif report_type == 'isr':
         existing = claim.isr_reports.order_by('-version_number').first()
-        post_data = request.POST.copy()
+        conflict = check_optimistic_concurrency(existing, base_updated_at=post_data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+
         if not post_data.get('report_number'):
             post_data['report_number'] = generate_report_number(claim, 'ISR')
         form = ISRForm(post_data, instance=existing)
         if form.is_valid():
-            skip_justification = request.POST.get('skip_justification', '').strip()
+            skip_justification = (post_data.get('skip_justification') or '').strip()
             if not claim.has_completed_lor_and_assessment and not skip_justification:
+                if is_json:
+                    return JsonResponse({'detail': 'Reason for skipping LOR/Assessment is required.', 'errors': {'skip_justification': 'Reason for skipping LOR/Assessment is required.'}}, status=400)
                 messages.error(request, "Reason for skipping LOR/Assessment is required.")
                 return redirect(f'/claims/{pk}/?tab=isr')
 
@@ -1021,23 +1561,43 @@ def claim_report_save(request, pk, report_type):
                     try:
                         transition_claim_status(claim, ClaimStatus.ISR_PREPARED, request.user, remarks=remarks, request=request)
                     except ValidationError as e:
+                        if is_json:
+                            return JsonResponse({'detail': str(e), 'code': 'invalid_transition'}, status=400)
                         messages.error(request, str(e))
                         return redirect(f'/claims/{pk}/?tab=isr')
+
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': isr.id,
+                    'report_number': isr.report_number,
+                    'report_type': 'ISR',
+                    'message': 'Initial Survey Report (ISR) saved as draft.'
+                }, status=200 if existing else 201)
+
             messages.success(request, "Initial Survey Report (ISR) saved as draft.")
         else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
             for field, errors in form.errors.items():
                 for err in errors:
                     messages.error(request, f"{field.replace('_', ' ').title()}: {err}")
 
     elif report_type == 'fsr':
         existing = claim.fsr_reports.order_by('-version_number').first()
-        post_data = request.POST.copy()
+        conflict = check_optimistic_concurrency(existing, base_updated_at=post_data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+        if conflict:
+            return JsonResponse(conflict, status=409)
+
         if not post_data.get('report_number'):
             post_data['report_number'] = generate_report_number(claim, 'FSR')
         form = FSRForm(post_data, instance=existing)
         if form.is_valid():
-            skip_justification = request.POST.get('skip_justification', '').strip()
+            skip_justification = (post_data.get('skip_justification') or '').strip()
             if not claim.has_completed_lor_and_assessment and not skip_justification:
+                if is_json:
+                    return JsonResponse({'detail': 'Reason for skipping LOR/Assessment is required.', 'errors': {'skip_justification': 'Reason for skipping LOR/Assessment is required.'}}, status=400)
                 messages.error(request, "Reason for skipping LOR/Assessment is required.")
                 return redirect(f'/claims/{pk}/?tab=fsr')
 
@@ -1055,10 +1615,25 @@ def claim_report_save(request, pk, report_type):
                     try:
                         transition_claim_status(claim, ClaimStatus.FSR_PREPARED, request.user, remarks=remarks, request=request)
                     except ValidationError as e:
+                        if is_json:
+                            return JsonResponse({'detail': str(e), 'code': 'invalid_transition'}, status=400)
                         messages.error(request, str(e))
                         return redirect(f'/claims/{pk}/?tab=fsr')
+
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': fsr.id,
+                    'report_number': fsr.report_number,
+                    'report_type': 'FSR',
+                    'message': 'Final Survey Report (FSR) saved as draft.'
+                }, status=200 if existing else 201)
+
             messages.success(request, "Final Survey Report (FSR) saved as draft.")
         else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
             for field, errors in form.errors.items():
                 for err in errors:
                     messages.error(request, f"{field.replace('_', ' ').title()}: {err}")
@@ -1155,28 +1730,44 @@ def claim_approve_and_close(request, pk):
     """
     Admin-only action: finalise the latest submitted report and close the claim
     in a single atomic operation.
-
-    Requirements:
-      - POST only, with a non-blank 'remarks' field.
-      - The claim must have a latest_submitted_report whose status is SUBMITTED.
-      - Sets that report's status to FINAL and saves it, then calls close_claim().
     """
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     claim = get_object_or_404(Claim, pk=pk)
 
     if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
         return redirect(f'/claims/{pk}/?tab=overview')
 
-    remarks = request.POST.get('remarks', '').strip()
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    remarks = (data.get('remarks') or '').strip()
     if not remarks:
+        if is_json:
+            return JsonResponse({'detail': 'Approval remarks are required to close this claim.', 'errors': {'remarks': 'This field is required.'}}, status=400)
         messages.error(request, "Approval remarks are required to close this claim.")
         return redirect(f'/claims/{pk}/?tab=overview')
 
     report = claim.latest_submitted_report
     if report is None:
+        if is_json:
+            return JsonResponse({'detail': 'Cannot close claim: no submitted report found. Please ensure a report has been submitted first.', 'errors': {'report': 'No submitted report found'}}, status=400)
         messages.error(request, "Cannot close claim: no submitted report found. Please ensure a report has been submitted first.")
         return redirect(f'/claims/{pk}/?tab=overview')
 
     if report.status != ReportStatus.SUBMITTED:
+        if is_json:
+            return JsonResponse({'detail': f"Cannot close claim: the latest report is '{report.get_status_display()}', not Submitted.", 'errors': {'report': f"Status is {report.status}"}}, status=400)
         messages.error(request, f"Cannot close claim: the latest report is '{report.get_status_display()}', not Submitted.")
         return redirect(f'/claims/{pk}/?tab=overview')
 
@@ -1187,11 +1778,22 @@ def claim_approve_and_close(request, pk):
             close_claim(claim, request.user, remarks=remarks, request=request)
     except ValidationError as exc:
         err_msg = exc.message if hasattr(exc, 'message') else '; '.join(exc.messages) if hasattr(exc, 'messages') else str(exc)
+        if is_json:
+            return JsonResponse({'detail': f"Close failed: {err_msg}", 'errors': {'claim': err_msg}}, status=400)
         messages.error(request, f"Close failed: {err_msg}")
         return redirect(f'/claims/{pk}/?tab=overview')
 
+    if is_json:
+        return JsonResponse({
+            'status': 'success',
+            'id': claim.id,
+            'claim_number': claim.claim_number,
+            'message': f"Claim {claim.claim_number} has been approved and closed."
+        }, status=200)
+
     messages.success(request, f"Claim {claim.claim_number} has been approved and closed.")
     return redirect(f'/claims/{pk}/?tab=activity')
+
 
 
 # --- Surveyors Views ---
@@ -1284,28 +1886,95 @@ def insurer_list(request):
 
 @admin_required
 def insurer_add(request):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
+    is_popout = (
+        request.GET.get('popout') == '1'
+        or request.GET.get('opened_as_popout') == '1'
+        or request.POST.get('popout') == '1'
+        or request.POST.get('opened_as_popout') == '1'
+    )
+
     if request.method == 'POST':
-        form = InsurerForm(request.POST)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            form = InsurerForm(data)
+        else:
+            form = InsurerForm(request.POST)
+
         if form.is_valid():
             insurer = form.save()
-            messages.success(request, f"Insurer {insurer.company_name} ({insurer.branch_name}) created successfully.")
+            label = f"{insurer.company_name} ({insurer.branch_name})"
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': insurer.id,
+                    'company_name': insurer.company_name,
+                    'label': label,
+                    'message': f"Insurer {label} created successfully."
+                }, status=201)
+            if is_popout:
+                return render(request, 'popout_success.html', {
+                    'entity_type': 'insurer',
+                    'entity_id': insurer.id,
+                    'entity_label': label,
+                    'redirect_url': '/insurers/',
+                })
+            messages.success(request, f"Insurer {label} created successfully.")
             return redirect('/insurers/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = InsurerForm()
-    return render(request, 'insurers/insurer_form.html', {'form': form, 'title': 'Add New Insurer'})
+
+    return render(request, 'insurers/insurer_form.html', {'form': form, 'title': 'Add New Insurer', 'is_popout': is_popout})
 
 
 @admin_required
 def insurer_edit(request, pk):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     insurer = get_object_or_404(Insurer, pk=pk)
+
     if request.method == 'POST':
-        form = InsurerForm(request.POST, instance=insurer)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            conflict = check_optimistic_concurrency(insurer, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = InsurerForm(data, instance=insurer)
+        else:
+            conflict = check_optimistic_concurrency(insurer, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = InsurerForm(request.POST, instance=insurer)
+
         if form.is_valid():
             form.save()
+            label = f"{insurer.company_name} ({insurer.branch_name})"
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': insurer.id,
+                    'company_name': insurer.company_name,
+                    'label': label,
+                    'message': f"Insurer {label} updated successfully."
+                }, status=200)
             messages.success(request, f"Insurer {insurer.company_name} updated successfully.")
             return redirect('/insurers/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = InsurerForm(instance=insurer)
+
     return render(request, 'insurers/insurer_form.html', {'form': form, 'title': f'Edit Insurer: {insurer.company_name}'})
 
 
@@ -1319,28 +1988,93 @@ def insured_list(request):
 
 @admin_required
 def insured_add(request):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
+    is_popout = (
+        request.GET.get('popout') == '1'
+        or request.GET.get('opened_as_popout') == '1'
+        or request.POST.get('popout') == '1'
+        or request.POST.get('opened_as_popout') == '1'
+    )
+
     if request.method == 'POST':
-        form = InsuredForm(request.POST)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            form = InsuredForm(data)
+        else:
+            form = InsuredForm(request.POST)
+
         if form.is_valid():
             insured = form.save()
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': insured.id,
+                    'name': insured.name,
+                    'label': insured.name,
+                    'message': f"Insured party {insured.name} created successfully."
+                }, status=201)
+            if is_popout:
+                return render(request, 'popout_success.html', {
+                    'entity_type': 'insured',
+                    'entity_id': insured.id,
+                    'entity_label': insured.name,
+                    'redirect_url': '/insured/',
+                })
             messages.success(request, f"Insured party {insured.name} created successfully.")
             return redirect('/insured/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = InsuredForm()
-    return render(request, 'insured/insured_form.html', {'form': form, 'title': 'Add New Insured Party'})
+
+    return render(request, 'insured/insured_form.html', {'form': form, 'title': 'Add New Insured Party', 'is_popout': is_popout})
 
 
 @admin_required
 def insured_edit(request, pk):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     insured = get_object_or_404(Insured, pk=pk)
+
     if request.method == 'POST':
-        form = InsuredForm(request.POST, instance=insured)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            conflict = check_optimistic_concurrency(insured, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = InsuredForm(data, instance=insured)
+        else:
+            conflict = check_optimistic_concurrency(insured, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = InsuredForm(request.POST, instance=insured)
+
         if form.is_valid():
             form.save()
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': insured.id,
+                    'name': insured.name,
+                    'label': insured.name,
+                    'message': f"Insured party {insured.name} updated successfully."
+                }, status=200)
             messages.success(request, f"Insured party {insured.name} updated successfully.")
             return redirect('/insured/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = InsuredForm(instance=insured)
+
     return render(request, 'insured/insured_form.html', {'form': form, 'title': f'Edit Insured: {insured.name}'})
 
 
@@ -1354,29 +2088,100 @@ def policy_list(request):
 
 @admin_required
 def policy_add(request):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
+    is_popout = (
+        request.GET.get('popout') == '1'
+        or request.GET.get('opened_as_popout') == '1'
+        or request.POST.get('popout') == '1'
+        or request.POST.get('opened_as_popout') == '1'
+    )
+
     if request.method == 'POST':
-        form = PolicyForm(request.POST)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            form = PolicyForm(data)
+        else:
+            form = PolicyForm(request.POST)
+
         if form.is_valid():
             policy = form.save()
+            label = f"{policy.policy_number} - {policy.insurer.company_name}"
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': policy.id,
+                    'policy_number': policy.policy_number,
+                    'label': label,
+                    'extra': {'insurer_id': policy.insurer_id},
+                    'message': f"Policy {policy.policy_number} created successfully."
+                }, status=201)
+            if is_popout:
+                return render(request, 'popout_success.html', {
+                    'entity_type': 'policy',
+                    'entity_id': policy.id,
+                    'entity_label': label,
+                    'extra_json': json.dumps({'insurer_id': policy.insurer_id}),
+                    'redirect_url': '/policies/',
+                })
             messages.success(request, f"Policy {policy.policy_number} created successfully.")
             return redirect('/policies/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = PolicyForm()
-    return render(request, 'policies/policy_form.html', {'form': form, 'title': 'Add New Policy'})
+
+    return render(request, 'policies/policy_form.html', {'form': form, 'title': 'Add New Policy', 'is_popout': is_popout})
 
 
 @admin_required
 def policy_edit(request, pk):
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
     policy = get_object_or_404(Policy, pk=pk)
+
     if request.method == 'POST':
-        form = PolicyForm(request.POST, instance=policy)
+        if request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+            conflict = check_optimistic_concurrency(policy, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = PolicyForm(data, instance=policy)
+        else:
+            conflict = check_optimistic_concurrency(policy, base_updated_at=request.POST.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+            if conflict:
+                return JsonResponse(conflict, status=409)
+            form = PolicyForm(request.POST, instance=policy)
+
         if form.is_valid():
             form.save()
+            label = f"{policy.policy_number} - {policy.insurer.company_name}"
+            if is_json:
+                return JsonResponse({
+                    'status': 'success',
+                    'id': policy.id,
+                    'policy_number': policy.policy_number,
+                    'label': label,
+                    'extra': {'insurer_id': policy.insurer_id},
+                    'message': f"Policy {policy.policy_number} updated successfully."
+                }, status=200)
             messages.success(request, f"Policy {policy.policy_number} updated successfully.")
             return redirect('/policies/')
+        else:
+            if is_json:
+                errors = {k: v.as_text() for k, v in form.errors.items()}
+                return JsonResponse({'detail': 'Validation error', 'errors': errors}, status=400)
     else:
         form = PolicyForm(instance=policy)
+
     return render(request, 'policies/policy_form.html', {'form': form, 'title': f'Edit Policy: {policy.policy_number}'})
+
 
 
 # --- Operational Supporting Views ---

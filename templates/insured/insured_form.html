@@ -13,6 +13,10 @@
 <div class="form-card">
     <form method="post">
         {% csrf_token %}
+        {% if is_popout %}
+        <input type="hidden" name="popout" value="1">
+        <input type="hidden" name="opened_as_popout" value="1">
+        {% endif %}
 
         {% if form.non_field_errors %}
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>

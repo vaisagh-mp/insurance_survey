@@ -5,6 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="description" content="SOTERIA Insurance Surveyor field inspection and reporting system">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/icon-192x192.png' %}">
     <title>{% block title %}Insurance Surveyor System{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     {% block extra_css %}{% endblock %}
@@ -173,7 +177,7 @@
     {% endblock layout %}
 
     <footer class="site-footer">
-        <p>&copy; {% now "Y" %} Insurance Surveyor System (V1). All rights reserved.</p>
+        <p>&copy; {% now "Y" %} Insurance Surveyor System. All rights reserved.</p>
     </footer>
 
     <script>
@@ -227,6 +231,29 @@
         });
     </script>
 
+    <!-- PWA: Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+                    .then(function(reg) {
+                        console.log('[PWA] Service Worker registered, scope:', reg.scope);
+                    })
+                    .catch(function(err) {
+                        console.warn('[PWA] Service Worker registration failed:', err);
+                    });
+            });
+        }
+    </script>
+
+    <!-- PWA: Offline Foundation & Sync UI -->
+    <script src="{% static 'js/offline-sync.js' %}?v=6"></script>
+    <script src="{% static 'js/outbox.js' %}?v=6"></script>
+    <script src="{% static 'js/image-compress.js' %}?v=6"></script>
+    <script src="{% static 'js/photo-compress.js' %}?v=6"></script>
+    <script src="{% static 'js/sync-ui.js' %}?v=6"></script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
+

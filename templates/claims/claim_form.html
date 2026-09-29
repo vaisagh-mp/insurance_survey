@@ -259,7 +259,7 @@
             <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
                 Section B — Insurer Particulars
             </h3>
-            <a href="/insurers/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+            <a href="/insurers/add/?popout=1&opened_as_popout=1" target="_blank" rel="opener" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
                 + Add new Insurer &nearr;
             </a>
         </div>
@@ -277,7 +277,7 @@
             <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
                 Section C — Insured Particulars
             </h3>
-            <a href="/insured/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+            <a href="/insured/add/?popout=1&opened_as_popout=1" target="_blank" rel="opener" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
                 + Add new Insured &nearr;
             </a>
         </div>
@@ -294,7 +294,7 @@
             <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; margin: 0;">
                 Section D — Underwriting Policy
             </h3>
-            <a href="/policies/add/" target="_blank" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
+            <a href="/policies/add/?popout=1&opened_as_popout=1" target="_blank" rel="opener" style="font-size: 0.85rem; color: #2b6cb0; text-decoration: none; font-weight: 600;">
                 + Add new Policy &nearr;
             </a>
         </div>
@@ -467,6 +467,62 @@
         if (insurerSelect.value) {
             updatePolicyOptions();
         }
+
+        // Cross-tab popout refresh handler (Rule 6)
+        function handleEntityCreated(data) {
+            if (!data || data.type !== 'ENTITY_CREATED') return;
+            const entityType = data.entityType;
+            const id = String(data.id);
+            const label = data.label;
+            const extra = data.extra || {};
+
+            if (entityType === 'insurer') {
+                if (insurerSelect) {
+                    let opt = Array.from(insurerSelect.options).find(o => o.value === id);
+                    if (!opt) {
+                        opt = new Option(label, id, true, true);
+                        insurerSelect.appendChild(opt);
+                    }
+                    insurerSelect.value = id;
+                    updatePolicyOptions();
+                    insurerSelect.dispatchEvent(new Event('change'));
+                }
+            } else if (entityType === 'insured') {
+                const insuredSelect = document.getElementById('id_insured');
+                if (insuredSelect) {
+                    let opt = Array.from(insuredSelect.options).find(o => o.value === id);
+                    if (!opt) {
+                        opt = new Option(label, id, true, true);
+                        insuredSelect.appendChild(opt);
+                    }
+                    insuredSelect.value = id;
+                    insuredSelect.dispatchEvent(new Event('change'));
+                }
+            } else if (entityType === 'policy') {
+                if (policySelect) {
+                    const existingInCache = allPolicyOptions.find(o => String(o.value) === id);
+                    if (!existingInCache) {
+                        allPolicyOptions.push({
+                            value: id,
+                            text: label,
+                            insurerId: extra.insurer_id ? Number(extra.insurer_id) : (insurerSelect ? Number(insurerSelect.value) : null)
+                        });
+                    }
+                    updatePolicyOptions();
+                    policySelect.value = id;
+                    policySelect.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('soteria_master_data');
+            bc.onmessage = (event) => handleEntityCreated(event.data);
+        }
+
+        window.addEventListener('message', (event) => {
+            handleEntityCreated(event.data);
+        });
     })();
 </script>
 {% endblock %}

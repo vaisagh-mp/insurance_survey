@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Saved — Insurance Surveyor System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #f8fafc;
+            color: #1e293b;
+            text-align: center;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            max-width: 420px;
+            width: 90%;
+        }
+        .icon {
+            font-size: 2.25rem;
+            margin-bottom: 0.75rem;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1.25rem;
+            background-color: #2b6cb0;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: background-color 0.15s;
+        }
+        .btn:hover {
+            background-color: #2c5282;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">✅</div>
+        <h2 id="successTitle" style="margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 700;">Saved Successfully</h2>
+        <p id="statusMsg" style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
+            Processing...
+        </p>
+        <a id="fallbackLink" href="{{ redirect_url|default:'/' }}" class="btn" style="display: none;">
+            Return to List &rarr;
+        </a>
+    </div>
+    <script>
+        (function() {
+            var msg = {
+                type: 'ENTITY_CREATED',
+                entityType: '{{ entity_type }}',
+                id: '{{ entity_id }}',
+                label: '{{ entity_label|escapejs }}',
+                extra: {{ extra_json|default:"{}"|safe }}
+            };
+
+            var redirectUrl = '{{ redirect_url|default:"/" }}';
+            var statusMsg = document.getElementById('statusMsg');
+            var fallbackLink = document.getElementById('fallbackLink');
+
+            // Detect if running inside a popout window with an opener
+            var hasOpener = false;
+            try {
+                hasOpener = !!(window.opener && window.opener !== window);
+            } catch(e) {
+                hasOpener = true; // Opener exists but cross-origin
+            }
+
+            // Always broadcast on BroadcastChannel for other open tabs
+            try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                    var bc = new BroadcastChannel('soteria_master_data');
+                    bc.postMessage(msg);
+                }
+            } catch(e) {}
+
+            if (hasOpener) {
+                // Running in a popout: postMessage to opener and close window
+                if (statusMsg) {
+                    statusMsg.textContent = 'Updating claim form dropdown and closing this window...';
+                }
+                try {
+                    window.opener.postMessage(msg, '*');
+                } catch(e) {}
+
+                setTimeout(function() {
+                    window.close();
+                    // Fallback if browser blocked window.close()
+                    setTimeout(function() {
+                        if (statusMsg) {
+                            statusMsg.textContent = 'Saved! You can safely close this window or return.';
+                        }
+                        if (fallbackLink) {
+                            fallbackLink.style.display = 'inline-block';
+                        }
+                    }, 1000);
+                }, 400);
+            } else {
+                // Not running inside a popout window: fallback to normal redirect-to-list behavior
+                if (statusMsg) {
+                    statusMsg.textContent = 'Saved successfully. Redirecting to list...';
+                }
+                if (fallbackLink) {
+                    fallbackLink.style.display = 'inline-block';
+                }
+                setTimeout(function() {
+                    window.location.href = redirectUrl;
+                }, 400);
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -73,12 +73,15 @@ class ServiceInvoice(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
+            inv_date = self.invoice_date or timezone.localdate()
+            # Indian Financial Year suffix: April 2026 - March 2027 -> 27
+            fy_suffix = (inv_date.year % 100 + 1) if inv_date.month >= 4 else (inv_date.year % 100)
             last_inv = ServiceInvoice.objects.order_by('-id').first()
             next_id = (last_inv.id + 1) if last_inv and last_inv.id else 1
-            candidate = f"SINV-{next_id:05d}"
+            candidate = f"SSLA/91/N/{fy_suffix:02d}/{next_id:03d}"
             while ServiceInvoice.objects.filter(invoice_number=candidate).exists():
                 next_id += 1
-                candidate = f"SINV-{next_id:05d}"
+                candidate = f"SSLA/91/N/{fy_suffix:02d}/{next_id:03d}"
             self.invoice_number = candidate
         super().save(*args, **kwargs)
 
