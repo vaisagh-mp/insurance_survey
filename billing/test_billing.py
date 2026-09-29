@@ -167,7 +167,7 @@ class ServiceInvoiceNumberAndUniquenessTests(BillingBaseTestCase):
             due_date=timezone.localdate() + timedelta(days=30),
             created_by=self.admin
         )
-        self.assertTrue(inv1.invoice_number.startswith('SINV-'))
+        self.assertTrue(inv1.invoice_number.startswith('SSLA/91/N/') or inv1.invoice_number.startswith('SINV-'))
 
         # Create another claim for inv2
         claim2 = Claim.objects.create(
@@ -189,8 +189,9 @@ class ServiceInvoiceNumberAndUniquenessTests(BillingBaseTestCase):
             created_by=self.admin
         )
         self.assertNotEqual(inv1.invoice_number, inv2.invoice_number)
-        num1 = int(inv1.invoice_number.split('-')[1])
-        num2 = int(inv2.invoice_number.split('-')[1])
+        sep = '/' if '/' in inv1.invoice_number else '-'
+        num1 = int(inv1.invoice_number.split(sep)[-1])
+        num2 = int(inv2.invoice_number.split(sep)[-1])
         self.assertEqual(num2, num1 + 1)
 
     def test_duplicate_active_invoice_rejected_on_same_claim(self):

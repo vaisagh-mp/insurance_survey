@@ -194,7 +194,7 @@
                     Select an active surveyor from the roster. Assigning a surveyor grants them immediate access in their surveyor portal to schedule inspections, issue LORs, and submit survey reports.
                 </p>
 
-                <form method="post" action="/claims/{{ claim.id }}/assign/">
+                <form id="claimAssignmentForm" method="post" action="/claims/{{ claim.id }}/assign/" data-label="Surveyor Assignment">
                     {% csrf_token %}
                     <div class="form-grid">
                         <div class="form-group">
@@ -293,7 +293,7 @@
                 <h4 style="font-size: 1.05rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
                     + Upload Claim Document
                 </h4>
-                <form method="post" action="/claims/{{ claim.id }}/documents/upload/" enctype="multipart/form-data">
+                <form id="claimDocumentUploadForm" method="post" action="/claims/{{ claim.id }}/documents/upload/" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="form-grid">
                         <div class="form-group">
@@ -446,7 +446,7 @@
                 <h3 style="font-size: 1.15rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1.25rem;">
                     Record / Update Inspection &amp; Upload Attachments
                 </h3>
-                <form method="post" action="/claims/{{ claim.id }}/inspection/save/" enctype="multipart/form-data">
+                <form id="claimInspectionForm" method="post" action="/claims/{{ claim.id }}/inspection/save/" enctype="multipart/form-data" data-label="Inspection Details &amp; Attachments">
                     {% csrf_token %}
                     {% if inspections.first %}
                         <input type="hidden" name="inspection_id" value="{{ inspections.first.id }}">
@@ -552,14 +552,14 @@
                         <a href="/claims/{{ claim.id }}/report/ila/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                             👁️ Preview PDF
                         </a>
-                        <form method="post" action="/claims/{{ claim.id }}/report/ila/generate-pdf/" style="display: inline;">
+                        <form id="claimIlaGeneratePdfForm" method="post" action="/claims/{{ claim.id }}/report/ila/generate-pdf/" style="display: inline;" data-label="Generate ILA PDF">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                                 📄 Generate PDF Document
                             </button>
                         </form>
                         {% if request.user.role == 'SURVEYOR' and ila_report.status == 'DRAFT' %}
-                            <form method="post" action="/claims/{{ claim.id }}/report/ila/submit/" style="display: inline;">
+                            <form id="claimIlaSubmitForm" method="post" action="/claims/{{ claim.id }}/report/ila/submit/" style="display: inline;" data-label="Submit ILA Report">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
                                     🚀 Submit Report
@@ -572,7 +572,7 @@
 
             <!-- If Surveyor and Draft (or New): Show Interactive Form -->
             {% if request.user.role == 'SURVEYOR' and ila_form %}
-                <form method="post" action="/claims/{{ claim.id }}/report/ila/save/">
+                <form id="claimIlaForm" method="post" action="/claims/{{ claim.id }}/report/ila/save/" data-label="ILA Report Details">
                     {% csrf_token %}
                     <div class="form-grid">
                         <!-- Report & Policy Particulars -->
@@ -779,7 +779,7 @@
                                         {% if req.status == 'VERIFIED' and request.user.role != 'ADMIN' and not request.user.is_superuser %}
                                             <span style="font-size: 0.75rem; color: #718096; font-style: italic;">Verified by Admin</span>
                                         {% else %}
-                                            <form method="post" action="/claims/{{ claim.id }}/lor/{{ req.id }}/update-status/" style="display: flex; gap: 0.35rem;">
+                                            <form method="post" action="/claims/{{ claim.id }}/lor/{{ req.id }}/update-status/" style="display: flex; gap: 0.35rem;" data-label="Update Requirement Status">
                                                 {% csrf_token %}
                                                 <select name="status" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: auto;">
                                                     <option value="PENDING" {% if req.status == 'PENDING' %}selected{% endif %}>Pending</option>
@@ -812,7 +812,7 @@
                 <h4 style="font-size: 1.05rem; font-weight: 700; color: #1a202c; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 1rem;">
                     + Add New Requirement to LOR
                 </h4>
-                <form method="post" action="/claims/{{ claim.id }}/lor/add/">
+                <form id="claimLorAddForm" method="post" action="/claims/{{ claim.id }}/lor/add/" data-label="Add Document Requirement (LOR)">
                     {% csrf_token %}
                     <div class="form-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
@@ -891,7 +891,7 @@
                                     {% else %}
                                         <span class="badge" style="background-color: #fef08a; color: #854d0e;">Pending</span>
                                         {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
-                                            <form method="post" action="/claims/{{ claim.id }}/documents/{{ doc.id }}/verify/" style="display: inline-block; margin-left: 0.35rem;">
+                                            <form method="post" action="/claims/{{ claim.id }}/documents/{{ doc.id }}/verify/" style="display: inline-block; margin-left: 0.35rem;" data-label="Verify Claim Document">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-primary" style="padding: 0.15rem 0.5rem; font-size: 0.725rem; cursor: pointer;" title="Mark this document as Verified">
                                                     ✓ Verify
@@ -1008,14 +1008,14 @@
                                 <td style="text-align: center; white-space: nowrap;">
                                     <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
                                         {% if request.user.role == 'ADMIN' or request.user.is_superuser %}
-                                            <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/verify/" style="display: inline; margin: 0;">
+                                            <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/verify/" style="display: inline; margin: 0;" data-label="Verify Repair Invoice">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-outline" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; color: {% if inv.verified %}#d97706{% else %}#059669{% endif %};" title="Toggle verification">
                                                     {% if inv.verified %}Unverify{% else %}✓ Verify{% endif %}
                                                 </button>
                                             </form>
                                         {% endif %}
-                                        <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/delete/" style="display: inline; margin: 0;" onsubmit="return confirm('Delete invoice #{{ inv.invoice_number }}?');">
+                                        <form method="post" action="/claims/{{ claim.id }}/invoices/{{ inv.id }}/delete/" style="display: inline; margin: 0;" onsubmit="return confirm('Delete invoice #{{ inv.invoice_number }}?');" data-label="Delete Invoice">
                                             {% csrf_token %}
                                             <button type="submit" style="background: none; border: none; color: #e53e3e; cursor: pointer; font-size: 0.85rem;" title="Delete Invoice">
                                                 🗑️
@@ -1045,7 +1045,7 @@
                     </h3>
                     <button type="button" onclick="closeAddInvoiceModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #718096;" title="Close">&times;</button>
                 </div>
-                <form id="form-add-invoice" method="post" action="/claims/{{ claim.id }}/invoices/add/" enctype="multipart/form-data">
+                <form id="form-add-invoice" method="post" action="/claims/{{ claim.id }}/invoices/add/" enctype="multipart/form-data" data-label="Repair Invoice">
                     {% csrf_token %}
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
                         <div>
@@ -1185,7 +1185,7 @@
                     <h4 style="font-size: 1rem; font-weight: 700; color: #2d3748; margin-bottom: 1rem;">
                         Update Financial Parameters &amp; Deductions
                     </h4>
-                    <form method="post" action="/claims/{{ claim.id }}/assessment/save/">
+                    <form id="claimAssessmentSaveForm" method="post" action="/claims/{{ claim.id }}/assessment/save/" data-label="Assessment Financial Summary">
                         {% csrf_token %}
                         <div class="form-grid">
                             <div class="form-group">
@@ -1259,7 +1259,7 @@
                                             <button type="button" class="btn btn-outline" style="color: #2b6cb0; border-color: #bee3f8; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="toggleEditItem('{{ itm.id }}')">
                                                 ✏️ Edit
                                             </button>
-                                            <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/delete/" style="margin: 0;">
+                                            <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/delete/" style="margin: 0;" data-label="Delete Assessment Line Item">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-outline" style="color: #e53e3e; border-color: #feb2b2; padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="return confirm('Delete this line item?');">
                                                     Delete
@@ -1272,7 +1272,7 @@
                             {% if request.user.role == 'SURVEYOR' %}
                                 <tr id="edit-item-row-{{ itm.id }}" style="display: none; background-color: #f7fafc; border-top: 1px dashed #cbd5e0;">
                                     <td colspan="8" style="padding: 1rem 1.25rem;">
-                                        <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/edit/">
+                                        <form method="post" action="/claims/{{ claim.id }}/assessment/item/{{ itm.id }}/edit/" data-label="Edit Assessment Item">
                                             {% csrf_token %}
                                             <div style="font-weight: 700; font-size: 0.85rem; color: #2b6cb0; margin-bottom: 0.75rem;">
                                                 ✏️ Edit Line Item: {{ itm.description }}
@@ -1345,7 +1345,7 @@
             {% if request.user.role == 'SURVEYOR' and assessment_item_form %}
                 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
                     <h5 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">+ Add Assessment Item</h5>
-                    <form method="post" action="/claims/{{ claim.id }}/assessment/item/add/">
+                    <form id="claimAssessmentItemAddForm" method="post" action="/claims/{{ claim.id }}/assessment/item/add/" data-label="Add Assessment Line Item">
                         {% csrf_token %}
                         <div class="form-grid">
                             <div class="form-group" style="grid-column: 1 / -1;">
@@ -1448,14 +1448,14 @@
                         <a href="/claims/{{ claim.id }}/report/isr/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                             👁️ Preview PDF
                         </a>
-                        <form method="post" action="/claims/{{ claim.id }}/report/isr/generate-pdf/" style="display: inline;">
+                        <form id="claimIsrGeneratePdfForm" method="post" action="/claims/{{ claim.id }}/report/isr/generate-pdf/" style="display: inline;" data-label="Generate ISR PDF">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                                 📄 Generate PDF Document
                             </button>
                         </form>
                         {% if request.user.role == 'SURVEYOR' and isr_report.status == 'DRAFT' %}
-                            <form method="post" action="/claims/{{ claim.id }}/report/isr/submit/" style="display: inline;">
+                            <form id="claimIsrSubmitForm" method="post" action="/claims/{{ claim.id }}/report/isr/submit/" style="display: inline;" data-label="Submit ISR Report">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
                                     🚀 Submit Report
@@ -1467,7 +1467,7 @@
             </div>
 
             {% if request.user.role == 'SURVEYOR' and isr_form %}
-                <form method="post" action="/claims/{{ claim.id }}/report/isr/save/">
+                <form id="claimIsrForm" method="post" action="/claims/{{ claim.id }}/report/isr/save/" data-label="ISR Report Details">
                     {% csrf_token %}
                     <div class="form-grid">
                         {% if not claim.has_completed_lor_and_assessment %}
@@ -1572,14 +1572,14 @@
                         <a href="/claims/{{ claim.id }}/report/fsr/preview/" target="_blank" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                             👁️ Preview PDF
                         </a>
-                        <form method="post" action="/claims/{{ claim.id }}/report/fsr/generate-pdf/" style="display: inline;">
+                        <form id="claimFsrGeneratePdfForm" method="post" action="/claims/{{ claim.id }}/report/fsr/generate-pdf/" style="display: inline;" data-label="Generate FSR PDF">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline" style="font-size: 0.825rem; padding: 0.4rem 0.85rem;">
                                 📄 Generate PDF Document
                             </button>
                         </form>
                         {% if request.user.role == 'SURVEYOR' and fsr_report.status == 'DRAFT' %}
-                            <form method="post" action="/claims/{{ claim.id }}/report/fsr/submit/" style="display: inline;">
+                            <form id="claimFsrSubmitForm" method="post" action="/claims/{{ claim.id }}/report/fsr/submit/" style="display: inline;" data-label="Submit FSR Report">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary" style="font-size: 0.825rem; padding: 0.4rem 1rem;">
                                     🚀 Submit Report
@@ -1591,7 +1591,7 @@
             </div>
 
             {% if request.user.role == 'SURVEYOR' and fsr_form %}
-                <form method="post" action="/claims/{{ claim.id }}/report/fsr/save/">
+                <form id="claimFsrForm" method="post" action="/claims/{{ claim.id }}/report/fsr/save/" data-label="FSR Report Details">
                     {% csrf_token %}
                     <div class="form-grid">
                         {% if not claim.has_completed_lor_and_assessment %}
@@ -1797,7 +1797,7 @@
                         </a>
 
                         {% if service_invoice.status == 'DRAFT' %}
-                            <form method="post" action="/claims/{{ claim.id }}/billing/mark-sent/" style="display: inline;">
+                            <form id="claimBillingMarkSentForm" method="post" action="/claims/{{ claim.id }}/billing/mark-sent/" style="display: inline;" data-label="Mark Invoice Sent">
                                 {% csrf_token %}
                                 <button type="submit" class="btn" style="background: #2b6cb0; color: #fff; font-size: 0.825rem;" onclick="return confirm('Confirm marking this invoice as SENT to Insurer? Line items will be locked.');">
                                     📤 Mark Sent
@@ -1853,7 +1853,7 @@
                                     <td style="padding: 0.6rem 0.75rem; text-align: right; font-weight: 600; font-family: monospace;">₹{{ itm.amount|floatformat:2 }}</td>
                                     {% if service_invoice.status == 'DRAFT' %}
                                         <td style="padding: 0.6rem 0.75rem; text-align: center;">
-                                            <form method="post" action="/claims/{{ claim.id }}/billing/item/{{ itm.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this line item?');">
+                                            <form method="post" action="/claims/{{ claim.id }}/billing/item/{{ itm.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this line item?');" data-label="Delete Fee Item">
                                                 {% csrf_token %}
                                                 <button type="submit" style="background: none; border: none; color: #e53e3e; cursor: pointer; font-size: 0.9rem;" title="Delete item">🗑️</button>
                                             </form>
@@ -1873,7 +1873,7 @@
                     <!-- Add Line Item Form (DRAFT only) -->
                     {% if service_invoice.status == 'DRAFT' %}
                         <div style="background: #f8fafc; border: 1px dashed #cbd5e0; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 0.75rem;">
-                            <form method="post" action="/claims/{{ claim.id }}/billing/item/add/" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+                            <form id="claimBillingItemAddForm" method="post" action="/claims/{{ claim.id }}/billing/item/add/" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;" data-label="Add Fee Item">
                                 {% csrf_token %}
                                 <div style="flex: 2; min-width: 200px;">
                                     <label style="font-size: 0.75rem; font-weight: 600; color: #4a5568; display: block; margin-bottom: 0.2rem;">Description *</label>
@@ -1898,7 +1898,7 @@
                     <!-- Invoice Header & Notes Form / Info -->
                     <div>
                         {% if service_invoice.status == 'DRAFT' %}
-                            <form method="post" action="/claims/{{ claim.id }}/billing/save/">
+                            <form id="claimBillingSaveForm" method="post" action="/claims/{{ claim.id }}/billing/save/" data-label="Fee Bill Summary">
                                 {% csrf_token %}
                                 <h4 style="font-size: 0.95rem; font-weight: 700; color: #2d3748; margin-bottom: 0.75rem;">Invoice Parameters &amp; Notes</h4>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
@@ -1980,7 +1980,7 @@
                     No active service fee invoice exists for this claim. Fill in the details below to generate a new Draft fee invoice for <strong>{{ claim.insurer.company_name }}</strong>.
                 </p>
 
-                <form method="post" action="/claims/{{ claim.id }}/billing/create/" style="max-width: 650px;">
+                <form id="claimBillingCreateForm" method="post" action="/claims/{{ claim.id }}/billing/create/" style="max-width: 650px;" data-label="Generate Survey Bill">
                     {% csrf_token %}
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div>
@@ -2055,7 +2055,7 @@
                 <p style="font-size:0.85rem; color:#4a5568; margin:0 0 1rem; line-height:1.4;">
                     Please provide a reason for cancelling invoice <strong>{{ service_invoice.invoice_number }}</strong>. The cancellation reason will be recorded permanently in the invoice remarks.
                 </p>
-                <form method="post" action="/claims/{{ claim.id }}/billing/cancel/">
+                <form id="claimBillingCancelForm" method="post" action="/claims/{{ claim.id }}/billing/cancel/" data-label="Cancel Invoice">
                     {% csrf_token %}
                     <div style="margin-bottom:1rem;">
                         <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.25rem;">
@@ -2078,7 +2078,7 @@
                 <p style="font-size:0.85rem; color:#4a5568; margin:0 0 1rem; line-height:1.4;">
                     Record payment received for invoice <strong>{{ service_invoice.invoice_number }}</strong> of <strong>₹{{ service_invoice.total_amount }}</strong>.
                 </p>
-                <form method="post" action="/claims/{{ claim.id }}/billing/record-payment/">
+                <form id="claimBillingPaymentForm" method="post" action="/claims/{{ claim.id }}/billing/record-payment/" data-label="Record Invoice Payment">
                     {% csrf_token %}
                     <div style="margin-bottom:1rem;">
                         <label style="display:block; font-size:0.8rem; font-weight:600; color:#374151; margin-bottom:0.25rem;">
@@ -2108,7 +2108,7 @@
             This will mark the latest submitted report as <strong>Final</strong> and transition the claim to
             <strong>Closed</strong>. This action cannot be undone.
         </p>
-        <form method="post" action="/claims/{{ claim.id }}/approve-and-close/" id="form-approve-close">
+        <form method="post" action="/claims/{{ claim.id }}/approve-and-close/" id="form-approve-close" data-label="Approve &amp; Close Claim">
             {% csrf_token %}
             <div style="margin-bottom:1rem;">
                 <label for="id_approve_remarks" style="display:block; font-size:0.875rem; font-weight:600; color:#374151; margin-bottom:0.35rem;">

@@ -1,9 +1,14 @@
+import json
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+from django.db.models import Q
+
+from config.concurrency import check_optimistic_concurrency
 from django.utils import timezone
 from django.db.models import Q
 
@@ -76,45 +81,72 @@ def claim_billing_create(request, pk):
     Rejects if a non-cancelled invoice already exists for this claim.
     """
     claim = get_object_or_404(Claim, pk=pk)
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        # Check for existing non-cancelled invoice
-        existing = ServiceInvoice.objects.filter(claim=claim).exclude(
-            status=ServiceInvoice.Status.CANCELLED
-        ).first()
-        if existing:
-            messages.error(
-                request,
-                f"A non-cancelled service invoice ({existing.invoice_number}) already exists for this claim."
-            )
-            return redirect(f"/claims/{claim.pk}/?tab=billing")
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
 
-        invoice_date_str = request.POST.get('invoice_date')
-        due_date_str = request.POST.get('due_date')
-        tax_pct_str = request.POST.get('tax_percentage', '18.00')
-        notes = request.POST.get('notes', '').strip()
-        remarks = request.POST.get('remarks', '').strip()
-
-        invoice_date = timezone.datetime.strptime(invoice_date_str, '%Y-%m-%d').date() if invoice_date_str else timezone.localdate()
-        due_date = timezone.datetime.strptime(due_date_str, '%Y-%m-%d').date() if due_date_str else (invoice_date + timezone.timedelta(days=30))
-        tax_pct = Decimal(tax_pct_str) if tax_pct_str else Decimal('18.00')
-
-        invoice = ServiceInvoice(
-            claim=claim,
-            invoice_date=invoice_date,
-            due_date=due_date,
-            tax_percentage=tax_pct,
-            notes=notes,
-            remarks=remarks,
-            created_by=request.user,
-            status=ServiceInvoice.Status.DRAFT,
-        )
+    if request.content_type == 'application/json':
         try:
-            invoice.full_clean()
-            invoice.save()
-            messages.success(request, f"Fee invoice {invoice.invoice_number} created successfully as Draft.")
-        except ValidationError as e:
-            messages.error(request, f"Failed to create invoice: {e}")
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(claim, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    # Check for existing non-cancelled invoice
+    existing = ServiceInvoice.objects.filter(claim=claim).exclude(
+        status=ServiceInvoice.Status.CANCELLED
+    ).first()
+    if existing:
+        msg = f"A non-cancelled service invoice ({existing.invoice_number}) already exists for this claim."
+        if is_json:
+            return JsonResponse({'detail': msg, 'code': 'conflict'}, status=409)
+        messages.error(request, msg)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    invoice_date_str = data.get('invoice_date')
+    due_date_str = data.get('due_date')
+    tax_pct_str = data.get('tax_percentage', '18.00')
+    notes = (data.get('notes') or '').strip()
+    remarks = (data.get('remarks') or '').strip()
+
+    invoice_date = timezone.datetime.strptime(invoice_date_str, '%Y-%m-%d').date() if invoice_date_str else timezone.localdate()
+    due_date = timezone.datetime.strptime(due_date_str, '%Y-%m-%d').date() if due_date_str else (invoice_date + timezone.timedelta(days=30))
+    tax_pct = Decimal(tax_pct_str) if tax_pct_str else Decimal('18.00')
+
+    invoice = ServiceInvoice(
+        claim=claim,
+        invoice_date=invoice_date,
+        due_date=due_date,
+        tax_percentage=tax_pct,
+        notes=notes,
+        remarks=remarks,
+        created_by=request.user,
+        status=ServiceInvoice.Status.DRAFT,
+    )
+    try:
+        invoice.full_clean()
+        invoice.save()
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'message': f"Fee invoice {invoice.invoice_number} created successfully as Draft."
+            }, status=201)
+        messages.success(request, f"Fee invoice {invoice.invoice_number} created successfully as Draft.")
+    except ValidationError as e:
+        if is_json:
+            errors = getattr(e, 'message_dict', {'non_field_errors': [str(e)]})
+            return JsonResponse({'detail': f"Failed to create invoice: {e}", 'errors': errors}, status=400)
+        messages.error(request, f"Failed to create invoice: {e}")
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
@@ -129,34 +161,62 @@ def claim_billing_save(request, pk):
     invoice = get_object_or_404(
         ServiceInvoice.objects.filter(claim=claim).exclude(status=ServiceInvoice.Status.CANCELLED)
     )
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        if invoice.status != ServiceInvoice.Status.DRAFT:
-            msg = f"Cannot modify invoice #{invoice.invoice_number}. Only DRAFT invoices can be edited."
-            messages.error(request, msg)
-            return HttpResponse(msg, status=400)
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
 
-        invoice_date_str = request.POST.get('invoice_date')
-        due_date_str = request.POST.get('due_date')
-        tax_pct_str = request.POST.get('tax_percentage')
-        notes = request.POST.get('notes')
-        remarks = request.POST.get('remarks')
+    if invoice.status != ServiceInvoice.Status.DRAFT:
+        msg = f"Cannot modify invoice #{invoice.invoice_number}. Only DRAFT invoices can be edited."
+        if is_json:
+            return JsonResponse({'detail': msg, 'code': 'locked'}, status=400)
+        messages.error(request, msg)
+        return HttpResponse(msg, status=400)
 
-        if invoice_date_str:
-            invoice.invoice_date = timezone.datetime.strptime(invoice_date_str, '%Y-%m-%d').date()
-        if due_date_str:
-            invoice.due_date = timezone.datetime.strptime(due_date_str, '%Y-%m-%d').date()
-        if tax_pct_str:
-            invoice.tax_percentage = Decimal(tax_pct_str)
-        if notes is not None:
-            invoice.notes = notes.strip()
-        if remarks is not None:
-            invoice.remarks = remarks.strip()
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
 
-        invoice.save()
-        recalculate_invoice(invoice)
-        messages.success(request, f"Invoice {invoice.invoice_number} updated and recalculated.")
+    conflict = check_optimistic_concurrency(invoice, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
 
+    invoice_date_str = data.get('invoice_date')
+    due_date_str = data.get('due_date')
+    tax_pct_str = data.get('tax_percentage')
+    notes = data.get('notes')
+    remarks = data.get('remarks')
+
+    if invoice_date_str:
+        invoice.invoice_date = timezone.datetime.strptime(invoice_date_str, '%Y-%m-%d').date()
+    if due_date_str:
+        invoice.due_date = timezone.datetime.strptime(due_date_str, '%Y-%m-%d').date()
+    if tax_pct_str:
+        invoice.tax_percentage = Decimal(tax_pct_str)
+    if notes is not None:
+        invoice.notes = notes.strip()
+    if remarks is not None:
+        invoice.remarks = remarks.strip()
+
+    invoice.save()
+    recalculate_invoice(invoice)
+
+    if is_json:
+        return JsonResponse({
+            'status': 'success',
+            'id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'total_amount': str(invoice.total_amount),
+            'message': f"Invoice {invoice.invoice_number} updated and recalculated."
+        }, status=200)
+
+    messages.success(request, f"Invoice {invoice.invoice_number} updated and recalculated.")
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
 
@@ -170,28 +230,59 @@ def claim_billing_item_add(request, pk):
     invoice = get_object_or_404(
         ServiceInvoice.objects.filter(claim=claim).exclude(status=ServiceInvoice.Status.CANCELLED)
     )
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        if invoice.status != ServiceInvoice.Status.DRAFT:
-            msg = f"Cannot add line item. Invoice #{invoice.invoice_number} is in '{invoice.status}' status and is locked."
-            messages.error(request, msg)
-            return HttpResponse(msg, status=400)
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
 
-        description = request.POST.get('description', '').strip()
-        qty_str = request.POST.get('quantity', '1')
-        rate_str = request.POST.get('rate', '0')
+    if invoice.status != ServiceInvoice.Status.DRAFT:
+        msg = f"Cannot add line item. Invoice #{invoice.invoice_number} is in '{invoice.status}' status and is locked."
+        if is_json:
+            return JsonResponse({'detail': msg, 'code': 'locked'}, status=400)
+        messages.error(request, msg)
+        return HttpResponse(msg, status=400)
 
-        if not description:
-            messages.error(request, "Description is required for an invoice line item.")
-            return redirect(f"/claims/{claim.pk}/?tab=billing")
-
+    if request.content_type == 'application/json':
         try:
-            qty = Decimal(qty_str) if qty_str else Decimal('1.00')
-            rate = Decimal(rate_str) if rate_str else Decimal('0.00')
-            add_invoice_item(invoice, description, qty, rate)
-            messages.success(request, f"Added item '{description}' and updated invoice totals.")
-        except (ValidationError, Exception) as e:
-            messages.error(request, f"Error adding item: {e}")
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(invoice, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    description = (data.get('description') or '').strip()
+    qty_str = data.get('quantity', '1')
+    rate_str = data.get('rate', '0')
+
+    if not description:
+        if is_json:
+            return JsonResponse({'detail': 'Description is required for an invoice line item.', 'errors': {'description': 'This field is required.'}}, status=400)
+        messages.error(request, "Description is required for an invoice line item.")
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    try:
+        qty = Decimal(qty_str) if qty_str else Decimal('1.00')
+        rate = Decimal(rate_str) if rate_str else Decimal('0.00')
+        item = add_invoice_item(invoice, description, qty, rate)
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': item.id,
+                'description': item.description,
+                'total': str(item.amount),
+                'message': f"Added item '{description}' and updated invoice totals."
+            }, status=201)
+        messages.success(request, f"Added item '{description}' and updated invoice totals.")
+    except (ValidationError, Exception) as e:
+        if is_json:
+            return JsonResponse({'detail': f"Error adding item: {e}", 'errors': {'non_field_errors': [str(e)]}}, status=400)
+        messages.error(request, f"Error adding item: {e}")
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
@@ -205,27 +296,56 @@ def claim_billing_item_edit(request, pk, item_id):
     claim = get_object_or_404(Claim, pk=pk)
     item = get_object_or_404(ServiceInvoiceItem, pk=item_id, invoice__claim=claim)
     invoice = item.invoice
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        if invoice.status != ServiceInvoice.Status.DRAFT:
-            msg = f"Cannot edit line item. Invoice #{invoice.invoice_number} is in '{invoice.status}' status and is locked."
-            messages.error(request, msg)
-            return HttpResponse(msg, status=400)
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
 
-        description = request.POST.get('description', '').strip()
-        qty_str = request.POST.get('quantity')
-        rate_str = request.POST.get('rate')
+    if invoice.status != ServiceInvoice.Status.DRAFT:
+        msg = f"Cannot edit line item. Invoice #{invoice.invoice_number} is in '{invoice.status}' status and is locked."
+        if is_json:
+            return JsonResponse({'detail': msg, 'code': 'locked'}, status=400)
+        messages.error(request, msg)
+        return HttpResponse(msg, status=400)
 
+    if request.content_type == 'application/json':
         try:
-            update_invoice_item(
-                item,
-                description=description if description else None,
-                quantity=Decimal(qty_str) if qty_str else None,
-                rate=Decimal(rate_str) if rate_str else None
-            )
-            messages.success(request, f"Item '{item.description}' updated and invoice recalculated.")
-        except (ValidationError, Exception) as e:
-            messages.error(request, f"Error updating item: {e}")
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(item, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    description = (data.get('description') or '').strip()
+    qty_str = data.get('quantity')
+    rate_str = data.get('rate')
+
+    try:
+        update_invoice_item(
+            item,
+            description=description if description else None,
+            quantity=Decimal(qty_str) if qty_str else None,
+            rate=Decimal(rate_str) if rate_str else None
+        )
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': item.id,
+                'description': item.description,
+                'total': str(item.amount),
+                'message': f"Item '{item.description}' updated and invoice recalculated."
+            }, status=200)
+        messages.success(request, f"Item '{item.description}' updated and invoice recalculated.")
+    except (ValidationError, Exception) as e:
+        if is_json:
+            return JsonResponse({'detail': f"Error updating item: {e}", 'errors': {'non_field_errors': [str(e)]}}, status=400)
+        messages.error(request, f"Error updating item: {e}")
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
@@ -262,13 +382,40 @@ def claim_billing_mark_sent(request, pk):
     invoice = get_object_or_404(
         ServiceInvoice.objects.filter(claim=claim).exclude(status=ServiceInvoice.Status.CANCELLED)
     )
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    if request.content_type == 'application/json':
         try:
-            mark_invoice_sent(invoice, request.user)
-            messages.success(request, f"Invoice {invoice.invoice_number} marked as SENT.")
-        except ValidationError as e:
-            messages.error(request, str(e.message if hasattr(e, 'message') else e))
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(invoice, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    try:
+        mark_invoice_sent(invoice, request.user)
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': invoice.id,
+                'status_code': invoice.status,
+                'message': f"Invoice {invoice.invoice_number} marked as SENT."
+            }, status=200)
+        messages.success(request, f"Invoice {invoice.invoice_number} marked as SENT.")
+    except ValidationError as e:
+        err_msg = str(e.message if hasattr(e, 'message') else e)
+        if is_json:
+            return JsonResponse({'detail': err_msg, 'code': 'invalid_transition'}, status=400)
+        messages.error(request, err_msg)
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
@@ -282,14 +429,42 @@ def claim_billing_record_payment(request, pk):
     invoice = get_object_or_404(
         ServiceInvoice.objects.filter(claim=claim).exclude(status=ServiceInvoice.Status.CANCELLED)
     )
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        ref = request.POST.get('payment_reference', '').strip()
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    if request.content_type == 'application/json':
         try:
-            record_invoice_payment(invoice, request.user, payment_reference=ref)
-            messages.success(request, f"Payment recorded for invoice {invoice.invoice_number}.")
-        except ValidationError as e:
-            messages.error(request, str(e.message if hasattr(e, 'message') else e))
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(invoice, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    ref = (data.get('payment_reference') or '').strip()
+    try:
+        record_invoice_payment(invoice, request.user, payment_reference=ref)
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': invoice.id,
+                'status_code': invoice.status,
+                'payment_reference': invoice.payment_reference,
+                'message': f"Payment recorded for invoice {invoice.invoice_number}."
+            }, status=200)
+        messages.success(request, f"Payment recorded for invoice {invoice.invoice_number}.")
+    except ValidationError as e:
+        err_msg = str(e.message if hasattr(e, 'message') else e)
+        if is_json:
+            return JsonResponse({'detail': err_msg, 'code': 'invalid_transition'}, status=400)
+        messages.error(request, err_msg)
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
 
@@ -304,16 +479,50 @@ def claim_billing_cancel(request, pk):
     invoice = get_object_or_404(
         ServiceInvoice.objects.filter(claim=claim).exclude(status=ServiceInvoice.Status.CANCELLED)
     )
+    is_json = request.content_type == 'application/json' or 'application/json' in request.headers.get('Accept', '')
 
-    if request.method == 'POST':
-        reason = request.POST.get('reason', '').strip()
+    if request.method != 'POST':
+        if is_json:
+            return JsonResponse({'detail': 'Method not allowed'}, status=405)
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    if request.content_type == 'application/json':
         try:
-            cancel_invoice(invoice, request.user, reason=reason)
-            messages.success(request, f"Invoice {invoice.invoice_number} cancelled.")
-        except ValidationError as e:
-            messages.error(request, str(e.message if hasattr(e, 'message') else e))
+            data = json.loads(request.body)
+        except Exception:
+            return JsonResponse({'detail': 'Invalid JSON body'}, status=400)
+    else:
+        data = request.POST
+
+    conflict = check_optimistic_concurrency(invoice, base_updated_at=data.get('base_updated_at'), if_match=request.headers.get('If-Match'))
+    if conflict:
+        return JsonResponse(conflict, status=409)
+
+    reason = (data.get('reason') or '').strip()
+    if not reason:
+        if is_json:
+            return JsonResponse({'detail': 'Cancellation reason is required.', 'errors': {'reason': 'This field is required.'}}, status=400)
+        messages.error(request, "Cancellation reason is required.")
+        return redirect(f"/claims/{claim.pk}/?tab=billing")
+
+    try:
+        cancel_invoice(invoice, request.user, reason=reason)
+        if is_json:
+            return JsonResponse({
+                'status': 'success',
+                'id': invoice.id,
+                'status_code': invoice.status,
+                'message': f"Invoice {invoice.invoice_number} cancelled."
+            }, status=200)
+        messages.success(request, f"Invoice {invoice.invoice_number} cancelled.")
+    except ValidationError as e:
+        err_msg = str(e.message if hasattr(e, 'message') else e)
+        if is_json:
+            return JsonResponse({'detail': err_msg, 'code': 'invalid_transition'}, status=400)
+        messages.error(request, err_msg)
 
     return redirect(f"/claims/{claim.pk}/?tab=billing")
+
 
 
 @admin_required

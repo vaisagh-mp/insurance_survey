@@ -1,0 +1,173 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline — Soteria Survey</title>
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f0f2f5;
+            color: #1a2744;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .offline-container {
+            text-align: center;
+            max-width: 480px;
+        }
+
+        .offline-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.95); }
+        }
+
+        .offline-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1a2744;
+            margin-bottom: 0.75rem;
+        }
+
+        .offline-message {
+            font-size: 1rem;
+            color: #4b5563;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .offline-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .offline-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .offline-btn--primary {
+            background: #1a2744;
+            color: #fff;
+        }
+
+        .offline-btn--primary:hover {
+            background: #243552;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26, 39, 68, 0.3);
+        }
+
+        .offline-btn--secondary {
+            background: #fff;
+            color: #1a2744;
+            border: 2px solid #e5e7eb;
+        }
+
+        .offline-btn--secondary:hover {
+            border-color: #1a2744;
+            transform: translateY(-1px);
+        }
+
+        .offline-pending {
+            margin-top: 2rem;
+            padding: 1rem 1.5rem;
+            background: #fffbeb;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #92400e;
+            display: none;
+        }
+
+        .offline-pending.visible {
+            display: block;
+        }
+
+        .offline-footer {
+            margin-top: 3rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">📡</div>
+        <h1 class="offline-title">You're Offline</h1>
+        <p class="offline-message">
+            It looks like you've lost your internet connection.
+            Don't worry — any forms you've submitted while offline are safely stored
+            and will sync automatically when you reconnect.
+        </p>
+
+        <div class="offline-actions">
+            <button class="offline-btn offline-btn--primary" onclick="window.location.reload()">
+                🔄 Try Again
+            </button>
+            <button class="offline-btn offline-btn--secondary" onclick="history.back()">
+                ← Go Back
+            </button>
+        </div>
+
+        <div class="offline-pending" id="offline-pending-info">
+            📤 You have <strong><span id="pending-count">0</span></strong> pending submission(s)
+            waiting to sync.
+        </div>
+
+        <p class="offline-footer">
+            SOTERIA Insurance Surveyors &amp; Loss Assessors Pvt. Ltd.
+        </p>
+    </div>
+
+    <script>
+        // Show pending count if outbox has items
+        if (window.indexedDB) {
+            const request = indexedDB.open('soteria-outbox', 1);
+            request.onsuccess = function() {
+                const db = request.result;
+                if (db.objectStoreNames.contains('outbox')) {
+                    const tx = db.transaction('outbox', 'readonly');
+                    const countReq = tx.objectStore('outbox').count();
+                    countReq.onsuccess = function() {
+                        if (countReq.result > 0) {
+                            document.getElementById('pending-count').textContent = countReq.result;
+                            document.getElementById('offline-pending-info').classList.add('visible');
+                        }
+                    };
+                }
+            };
+        }
+
+        // Auto-reload when back online
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>

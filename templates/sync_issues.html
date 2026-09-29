@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Offline Outbox & Sync Status — SOTERIA{% endblock %}
+
+{% block content %}
+<div class="sync-issues-container">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h1 style="font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0;">Offline Outbox &amp; Sync Issues</h1>
+            <p style="color: #64748b; font-size: 0.9rem; margin-top: 0.25rem;">
+                Review pending offline submissions and manage any failed requests.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" id="btnRetryAll" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <span>🔄</span> Retry Failed
+            </button>
+            <button type="button" id="btnDiscardAll" class="btn btn-outline" style="color: #dc2626; border-color: #fca5a5;">
+                <span>🗑️</span> Discard All Failed
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="sync-issues-card" style="margin-bottom: 0; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Connection</div>
+            <div id="statConnection" style="font-size: 1.25rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">Checking…</div>
+        </div>
+        <div class="sync-issues-card" style="margin-bottom: 0; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Pending in Outbox</div>
+            <div id="statPending" style="font-size: 1.25rem; font-weight: 700; color: #0284c7; margin-top: 0.25rem;">0</div>
+        </div>
+        <div class="sync-issues-card" style="margin-bottom: 0; padding: 1.25rem;">
+            <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Failed / Conflicts</div>
+            <div id="statFailed" style="font-size: 1.25rem; font-weight: 700; color: #dc2626; margin-top: 0.25rem;">0</div>
+        </div>
+    </div>
+
+    <!-- Pending Outbox Items Card -->
+    <div class="sync-issues-card" id="cardPending" style="display: none; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h2 style="font-size: 1.15rem; font-weight: 600; color: #1e293b; margin: 0;">
+                📤 Pending Items in Outbox (<span id="pendingCountBadge">0</span>)
+            </h2>
+            <span style="font-size: 0.8rem; color: #0284c7; font-weight: 500;">
+                These will upload automatically when connected, or click "Sync Now".
+            </span>
+        </div>
+        <div id="pendingList"></div>
+    </div>
+
+    <!-- Failed Outbox Items Card -->
+    <div class="sync-issues-card">
+        <h2 style="font-size: 1.15rem; font-weight: 600; color: #1e293b; margin-bottom: 1rem;">Failed Outbox Items</h2>
+        <div id="syncIssuesList">
+            <div style="text-align: center; padding: 2rem; color: #94a3b8;">
+                Loading outbox records…
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    const listEl = document.getElementById('syncIssuesList');
+    const pendingListEl = document.getElementById('pendingList');
+    const cardPending = document.getElementById('cardPending');
+    const pendingCountBadge = document.getElementById('pendingCountBadge');
+
+    const statConn = document.getElementById('statConnection');
+    const statPending = document.getElementById('statPending');
+    const statFailed = document.getElementById('statFailed');
+
+    const btnRetryAll = document.getElementById('btnRetryAll');
+    const btnDiscardAll = document.getElementById('btnDiscardAll');
+
+    function updateStats() {
+        if (statConn) {
+            statConn.textContent = navigator.onLine ? 'Online' : 'Offline';
+            statConn.style.color = navigator.onLine ? '#10b981' : '#f59e0b';
+        }
+    }
+
+    async function renderIssues() {
+        updateStats();
+        if (!window.OfflineSync) {
+            listEl.innerHTML = '<div style="padding: 1rem; color: #dc2626;">Offline sync manager not loaded.</div>';
+            return;
+        }
+
+        const pendingCount = await window.OfflineSync.getPendingCount();
+        const pendingItems = typeof window.OfflineSync.getPendingItems === 'function'
+            ? await window.OfflineSync.getPendingItems()
+            : [];
+        const failedItems = await window.OfflineSync.getFailedItems();
+
+        if (statPending) statPending.textContent = pendingCount;
+        if (statFailed) statFailed.textContent = failedItems.length;
+
+        // Render Pending Card
+        if (pendingItems.length > 0) {
+            cardPending.style.display = 'block';
+            if (pendingCountBadge) pendingCountBadge.textContent = pendingItems.length;
+
+            let pendingHtml = '';
+            pendingItems.forEach(item => {
+                const label = item.label || 'Submission';
+                const created = new Date(item.createdAt).toLocaleString();
+                pendingHtml += `
+                    <div class="sync-issue-item" style="border-left: 4px solid #0284c7; margin-bottom: 0.75rem; padding: 0.85rem; background: #f8fafc; border-radius: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
+                            <div>
+                                <span style="background: #e0f2fe; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">
+                                    ${item.status === 'syncing' ? '⏳ Syncing…' : '📤 Queued'}
+                                </span>
+                                <strong style="margin-left: 0.5rem; font-size: 0.95rem; color: #1e293b;">${label}</strong>
+                                <span style="font-size: 0.8rem; color: #64748b; margin-left: 0.35rem;">(${item.entityType || 'General'})</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">${created}</div>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
+                            <code>${item.method} ${item.url}</code>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.65rem; justify-content: flex-end;">
+                            <button type="button" class="btn btn-outline btn-discard-pending" data-id="${item.id}" style="font-size: 0.775rem; padding: 0.2rem 0.6rem; color: #dc2626; border-color: #fca5a5;">
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            pendingListEl.innerHTML = pendingHtml;
+
+            pendingListEl.querySelectorAll('.btn-discard-pending').forEach(btn => {
+                btn.addEventListener('click', async function () {
+                    const id = this.getAttribute('data-id');
+                    if (confirm('Discard this pending submission from outbox?')) {
+                        await window.OfflineSync.discardItem(id);
+                        renderIssues();
+                    }
+                });
+            });
+        } else {
+            cardPending.style.display = 'none';
+        }
+
+        // Render Failed Items
+        if (failedItems.length === 0) {
+            listEl.innerHTML = `
+                <div style="text-align: center; padding: 2.5rem 1rem;">
+                    <div style="font-size: 2.25rem; margin-bottom: 0.5rem;">✨</div>
+                    <h3 style="font-size: 1.05rem; font-weight: 600; color: #1e293b; margin: 0;">No Failed Issues</h3>
+                    <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.25rem;">
+                        All offline changes have either synced or are queued in the Pending list above.
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        failedItems.forEach(item => {
+            const reasonClass = item.failureReason === 'conflict' ? 'reason--conflict' :
+                                item.failureReason === 'expired_auth' ? 'reason--expired_auth' : 'reason--other';
+            const reasonLabel = item.failureReason === 'conflict' ? 'Server Conflict (409)' :
+                                item.failureReason === 'expired_auth' ? 'Auth Expired (401)' : 'Sync Failed';
+
+            const payloadStr = typeof item.payload === 'string' ? item.payload : JSON.stringify(item.payload, null, 2);
+
+            html += `
+                <div class="sync-issue-item" data-id="${item.id}">
+                    <div class="sync-issue-header">
+                        <div>
+                            <span class="sync-issue-reason-badge ${reasonClass}">${reasonLabel}</span>
+                            <strong style="margin-left: 0.5rem; font-size: 0.9rem; color: #1e293b;">${item.method} ${item.url}</strong>
+                            <span style="font-size: 0.8rem; color: #64748b; margin-left: 0.5rem;">(${item.entityType || 'General'})</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #94a3b8;">
+                            ${new Date(item.createdAt).toLocaleString()}
+                        </div>
+                    </div>
+
+                    ${item.lastError ? `
+                        <div style="color: #b91c1c; font-size: 0.85rem; margin-bottom: 0.5rem; background: #fff1f2; padding: 0.5rem; border-radius: 4px;">
+                            <strong>Reason:</strong> ${item.lastError}
+                        </div>
+                    ` : ''}
+
+                    <details style="margin: 0.5rem 0;">
+                        <summary style="font-size: 0.8rem; color: #0284c7; cursor: pointer; font-weight: 600;">View Payload Data</summary>
+                        <pre class="sync-payload-pre">${payloadStr || '(empty payload)'}</pre>
+                    </details>
+
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-outline btn-discard" data-id="${item.id}" style="font-size: 0.8rem; padding: 0.25rem 0.65rem; color: #dc2626; border-color: #fca5a5;">
+                            Discard
+                        </button>
+                        <button type="button" class="btn btn-primary btn-retry" data-id="${item.id}" style="font-size: 0.8rem; padding: 0.25rem 0.75rem;">
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        listEl.innerHTML = html;
+
+        // Attach action handlers
+        listEl.querySelectorAll('.btn-retry').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const id = this.getAttribute('data-id');
+                btn.disabled = true;
+                btn.textContent = 'Retrying…';
+                await window.OfflineSync.retryFailedItem(id);
+                renderIssues();
+            });
+        });
+
+        listEl.querySelectorAll('.btn-discard').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const id = this.getAttribute('data-id');
+                if (confirm('Discard this queued change? The local data will be permanently removed from the outbox.')) {
+                    await window.OfflineSync.discardItem(id);
+                    renderIssues();
+                }
+            });
+        });
+    }
+
+
+
+    if (btnRetryAll) {
+        btnRetryAll.addEventListener('click', async function () {
+            btnRetryAll.disabled = true;
+            btnRetryAll.textContent = 'Retrying All…';
+            await window.OfflineSync.retryAllFailed();
+            btnRetryAll.disabled = false;
+            btnRetryAll.innerHTML = '<span>🔄</span> Retry Failed';
+            renderIssues();
+        });
+    }
+
+    if (btnDiscardAll) {
+        btnDiscardAll.addEventListener('click', async function () {
+            if (confirm('Discard ALL failed outbox items? This cannot be undone.')) {
+                await window.OfflineSync.discardAllFailed();
+                renderIssues();
+            }
+        });
+    }
+
+    window.addEventListener('online', async () => {
+        if (window.OfflineSync) await window.OfflineSync.processOutbox();
+        renderIssues();
+    });
+    window.addEventListener('offline', renderIssues);
+    window.addEventListener('soteria-outbox-count', renderIssues);
+    window.addEventListener('soteria-sync', renderIssues);
+
+    await renderIssues();
+
+    // If online and there are pending items, automatically trigger sync on page load
+    if (navigator.onLine && window.OfflineSync) {
+        const count = await window.OfflineSync.getPendingCount();
+        if (count > 0) {
+            await window.OfflineSync.processOutbox();
+            renderIssues();
+        }
+    }
+});
+</script>
+{% endblock %}

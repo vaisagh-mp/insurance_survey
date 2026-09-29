@@ -1247,3 +1247,307 @@ img {
     gap: 1rem !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PWA / Sync UI Components
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Offline/Online Status Banner ───────────────────────────────────────── */
+.sync-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+}
+
+.sync-banner--hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sync-banner--offline {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.sync-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
+
+.sync-banner__icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.sync-banner__text {
+  flex: 1;
+}
+
+.sync-banner__close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.sync-banner__close:hover {
+  opacity: 1;
+}
+
+/* ── Outbox Badge in Navbar ─────────────────────────────────────────────── */
+.outbox-badge-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  position: relative;
+}
+
+.outbox-badge-icon {
+  font-size: 1rem;
+}
+
+.outbox-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.outbox-badge--hidden {
+  transform: scale(0);
+  opacity: 0;
+}
+
+/* ── Toast Notifications ────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  max-width: 380px;
+  pointer-events: none;
+}
+
+.sync-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+}
+
+.sync-toast--visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.sync-toast--success {
+  background: rgba(5, 150, 105, 0.95);
+  color: #fff;
+}
+
+.sync-toast--error {
+  background: rgba(220, 38, 38, 0.95);
+  color: #fff;
+}
+
+.sync-toast--warning {
+  background: rgba(217, 119, 6, 0.95);
+  color: #fff;
+}
+
+.sync-toast--info {
+  background: rgba(15, 76, 129, 0.95);
+  color: #fff;
+}
+
+.sync-toast__icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.sync-toast__text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* ── Responsive adjustments for sync UI ─────────────────────────────────── */
+@media (max-width: 600px) {
+  .toast-container {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 1rem;
+    max-width: none;
+  }
+
+  .sync-banner__content {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ── Persistent Online/Offline Status Badge & Sync Issues Page ──────────── */
+.sync-status-nav-item {
+  display: flex;
+  align-items: center;
+}
+
+.sync-status-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #ffffff;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.sync-status-link:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.network-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.network-indicator--online {
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+}
+
+.network-indicator--offline {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+}
+
+.outbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #ef4444;
+  color: #ffffff;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.outbox-pill--hidden {
+  display: none !important;
+}
+
+.sync-banner__link {
+  color: #fff;
+  text-decoration: underline;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+}
+
+/* Sync Issues Page Styles */
+.sync-issues-container {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.sync-issues-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.sync-issue-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: #f8fafc;
+}
+
+.sync-issue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.sync-issue-reason-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.reason--conflict {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.reason--expired_auth {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.reason--other {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.sync-payload-pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.85rem;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
