@@ -25,17 +25,18 @@ importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox
 if (workbox) {
   console.log('[SW] Workbox loaded successfully');
 
-  // Precache static asset shell and offline page
+  // Precache static asset shell, offline page, and sync-issues page
   workbox.precaching.precacheAndRoute([
-    { url: '/offline/', revision: '3' },
-    { url: '/static/css/style.css', revision: '3' },
-    { url: '/static/images/icon-192x192.png', revision: '3' },
-    { url: '/static/images/icon-512x512.png', revision: '3' },
-    { url: '/static/images/soteria_logo.png', revision: '3' },
-    { url: '/static/js/offline-sync.js', revision: '3' },
-    { url: '/static/js/sync-ui.js', revision: '3' },
-    { url: '/static/js/image-compress.js', revision: '3' },
-    { url: '/static/manifest.json', revision: '3' },
+    { url: '/offline/', revision: '4' },
+    { url: '/sync-issues/', revision: '4' },
+    { url: '/static/css/style.css', revision: '4' },
+    { url: '/static/images/icon-192x192.png', revision: '4' },
+    { url: '/static/images/icon-512x512.png', revision: '4' },
+    { url: '/static/images/soteria_logo.png', revision: '4' },
+    { url: '/static/js/offline-sync.js', revision: '4' },
+    { url: '/static/js/sync-ui.js', revision: '4' },
+    { url: '/static/js/image-compress.js', revision: '4' },
+    { url: '/static/manifest.json', revision: '4' },
   ]);
 
   // App shell / HTML pages: NetworkFirst
