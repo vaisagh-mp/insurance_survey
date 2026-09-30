@@ -4,6 +4,24 @@
 {% block title %}Offline Outbox & Sync Status — SOTERIA{% endblock %}
 
 {% block content %}
+<div id="offlineBanner" style="display:none; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem 1.1rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.6rem; font-size: 0.875rem; color: #92400e;">
+    <span style="font-size: 1.1rem;">📴</span>
+    <span><strong>You are offline.</strong> This page is served from cache. Your outbox data (IndexedDB) is fully accessible. Retry and sync actions will execute automatically when you reconnect.</span>
+</div>
+<script>
+    if (!navigator.onLine) {
+        var b = document.getElementById('offlineBanner');
+        if (b) b.style.display = 'flex';
+    }
+    window.addEventListener('offline', function() {
+        var b = document.getElementById('offlineBanner');
+        if (b) b.style.display = 'flex';
+    });
+    window.addEventListener('online', function() {
+        var b = document.getElementById('offlineBanner');
+        if (b) b.style.display = 'none';
+    });
+</script>
 <div class="sync-issues-container">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
         <div>
